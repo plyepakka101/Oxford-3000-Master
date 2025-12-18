@@ -1,6 +1,4 @@
 
-// Removed /// <reference types="vite/client" /> to resolve "Cannot find type definition file" error.
-
 interface AIStudio {
   hasSelectedApiKey(): Promise<boolean>;
   openSelectKey(): Promise<void>;
@@ -8,20 +6,23 @@ interface AIStudio {
 
 interface Window {
   /**
-   * Fix: Removed 'readonly' modifier to match existing declarations and resolve
-   * the "All declarations of 'aistudio' must have identical modifiers" error.
+   * aistudio global object injected by the environment.
    */
-  aistudio: AIStudio;
+  // Fix: Added readonly modifier to match the environment's declaration and resolve modifier mismatch.
+  readonly aistudio: AIStudio;
 }
 
 /**
- * Fix: Augment the existing NodeJS.ProcessEnv interface instead of redeclaring the
- * 'process' variable. This resolves the conflict with standard Node.js type definitions
- * and avoids "Subsequent variable declarations must have the same type" and 
- * "Cannot redeclare block-scoped variable" errors.
+ * ประกาศตัวแปร Process interface และ process แบบ global
+ * เพื่อแก้ปัญหา TS2580 และข้อขัดแย้งในการประกาศตัวแปรซ้ำ (TS2403)
  */
-declare namespace NodeJS {
-  interface ProcessEnv {
+// Fix: Use the standard Process interface name to satisfy "Variable 'process' must be of type 'Process'"
+interface Process {
+  env: {
     API_KEY: string;
-  }
+    [key: string]: string | undefined;
+  };
 }
+
+// Fix: Redefine as var and use the Process interface to ensure type compatibility with existing declarations.
+declare var process: Process;
