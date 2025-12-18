@@ -21,22 +21,34 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Check for API key presence using the recommended environment checks
   useEffect(() => {
-    const key = process.env.API_KEY;
-    if (!key || key === 'undefined' || key === '') {
-      setHasApiKey(false);
-    } else {
-      setHasApiKey(true);
-    }
+    const checkApiKey = async () => {
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        const selected = await window.aistudio.hasSelectedApiKey();
+        setHasApiKey(selected);
+      } else {
+        const key = process.env.API_KEY;
+        const exists = !!(key && key !== 'undefined' && key !== '' && key !== 'null');
+        setHasApiKey(exists);
+      }
+    };
+    checkApiKey();
   }, []);
 
   const handleOpenKeySelector = async () => {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      await window.aistudio.openSelectKey();
-      // Assume success and refresh
-      window.location.reload();
+      try {
+        await window.aistudio.openSelectKey();
+        // Assume success to prevent race conditions as per guidelines
+        setHasApiKey(true);
+        // Refresh after a short delay to ensure process.env.API_KEY is populated
+        setTimeout(() => window.location.reload(), 300);
+      } catch (e) {
+        console.error("Failed to open key selector", e);
+      }
     } else {
-      alert("กรุณาตั้งค่า API_KEY ใน Environment Variables และสั่ง Re-deploy ใหม่");
+      alert("กรุณาตรวจสอบว่าชื่อ Key คือ 'API_KEY' และกด Redeploy ในหน้า Hosting อีกครั้งครับ");
     }
   };
 
@@ -77,11 +89,22 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen pb-20 bg-slate-50">
       {!hasApiKey && (
-        <div className="bg-amber-50 border-b border-amber-200 p-4 text-center">
-          <p className="text-amber-800 font-prompt text-sm">
-            <strong>⚠️ ไม่พบ API Key:</strong> แอปจะไม่สามารถแปลคำศัพท์หรืออ่านออกเสียงได้
-            <button onClick={handleOpenKeySelector} className="ml-3 underline font-bold text-amber-900">คลิกที่นี่เพื่อเชื่อมต่อ</button>
-          </p>
+        <div className="fixed top-0 inset-x-0 z-[60] bg-indigo-600 text-white px-4 py-3 shadow-2xl animate-bounce-in">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔑</span>
+              <p className="font-prompt text-sm leading-tight">
+                <strong>ยังไม่ได้เชื่อมต่อ AI:</strong> ระบบหา API_KEY ไม่เจอ (หรือยังไม่ได้ Redeploy) 
+                <br/><span className="text-xs opacity-80">คลิกปุ่มขวาเพื่อเชื่อมต่อด้วยตัวเองได้ทันที</span>
+              </p>
+            </div>
+            <button 
+              onClick={handleOpenKeySelector} 
+              className="bg-white text-indigo-600 px-6 py-2 rounded-full font-bold text-sm hover:bg-indigo-50 transition-colors shadow-lg whitespace-nowrap"
+            >
+              Connect with Google AI Studio
+            </button>
+          </div>
         </div>
       )}
 

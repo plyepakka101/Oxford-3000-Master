@@ -2,16 +2,22 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { GeminiWordResponse } from "../types";
 
-const APP_CACHE_NAME = 'oxford-3000-master-cache-v1';
+const APP_CACHE_NAME = 'oxford-3000-master-cache-v2';
 
 function extractJSON(text: string): string {
   const match = text.match(/\{[\s\S]*\}/);
   return match ? match[0] : text;
 }
 
+/**
+ * ดึงค่า API Key ที่ถูกต้องที่สุด
+ * ตรวจสอบทั้งจาก process.env และค่าว่างที่อาจเกิดจาก Vite build
+ */
 const getValidApiKey = (): string | null => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === 'undefined' || apiKey === '') return null;
+  if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey === 'null') {
+    return null;
+  }
   return apiKey;
 };
 
@@ -27,22 +33,20 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
       try {
         return await cachedResponse.json();
       } catch (e) {
-        console.warn("Cached data invalid");
+        console.warn("Cached data corrupt");
       }
     }
 
     const apiKey = getValidApiKey();
-    if (!apiKey) {
-      console.error("Missing API Key");
-      return null;
-    }
+    if (!apiKey) throw new Error("MISSING_API_KEY");
 
+    // สร้าง instance ใหม่ทุกครั้งเพื่อให้ได้ key ล่าสุด
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Provide details for "${normalizedWord}" based on Oxford 3000 standards.`,
+      contents: `Provide dictionary details for "${normalizedWord}" for Thai learners.`,
       config: {
-        systemInstruction: "You are an Oxford Dictionary Expert. Return ONLY valid JSON with: thaiTranslation, partOfSpeech, partOfSpeechThai, phonetic, exampleEnglish, exampleThai, and level (A1, A2, B1, or B2).",
+        systemInstruction: "Expert Oxford Dictionary lexicographer. Output ONLY valid JSON with Thai translations and examples. Use Oxford 3000 levels (A1-B2).",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -69,8 +73,12 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
     }));
 
     return data;
-  } catch (error) {
-    console.error("Error fetching word details:", error);
+  } catch (error: any) {
+    if (error.message === "MISSING_API_KEY") {
+      console.error("API Key not configured in environment.");
+    } else {
+      console.error("Gemini API Error:", error);
+    }
     return null;
   }
 };
@@ -112,7 +120,7 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
       return await decodeAudioData(audioData, audioContext, 24000, 1);
     }
   } catch (error) {
-    console.error("Error fetching audio:", error);
+    console.error("Audio generation failed:", error);
   }
   return null;
 };

@@ -5,7 +5,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY)
+    // พยายามดึงจากหลายชื่อที่เป็นไปได้
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY || process.env.VITE_API_KEY || process.env.VITE_GEMINI_KEY || "")
   },
   server: {
     port: 3000
