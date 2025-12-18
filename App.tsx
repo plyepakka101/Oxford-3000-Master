@@ -10,6 +10,7 @@ const App: React.FC = () => {
   const [activeLevel, setActiveLevel] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<'all' | 'favorites' | 'mastered' | 'unlearned'>('all');
   const [hasApiKey, setHasApiKey] = useState<boolean>(true);
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   
   const [favorites, setFavorites] = useState<string[]>(() => {
     const saved = localStorage.getItem('oxford3000_favorites');
@@ -21,9 +22,23 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Check for API key presence using the recommended environment checks
+  // ตรวจสอบสถานะการเชื่อมต่อเน็ต
   useEffect(() => {
-    const checkApiKey = async () => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // ตรวจสอบ API Key
+  const checkApiKey = async () => {
+    try {
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const selected = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(selected);
@@ -32,22 +47,27 @@ const App: React.FC = () => {
         const exists = !!(key && key !== 'undefined' && key !== '' && key !== 'null');
         setHasApiKey(exists);
       }
-    };
+    } catch (err) {
+      console.warn("API Key check failed", err);
+      setHasApiKey(true);
+    }
+  };
+
+  useEffect(() => {
     checkApiKey();
+    const interval = setInterval(checkApiKey, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleOpenKeySelector = async () => {
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+    const studio = window.aistudio;
+    if (studio && typeof studio.openSelectKey === 'function') {
       try {
-        await window.aistudio.openSelectKey();
-        // Assume success to prevent race conditions as per guidelines.
-        // The API key is injected automatically via process.env.API_KEY.
+        await studio.openSelectKey();
         setHasApiKey(true);
       } catch (e) {
         console.error("Failed to open key selector", e);
       }
-    } else {
-      alert("กรุณาตรวจสอบว่าชื่อ Key คือ 'API_KEY' และกด Redeploy ในหน้า Hosting อีกครั้งครับ");
     }
   };
 
@@ -87,21 +107,28 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 bg-slate-50">
-      {!hasApiKey && (
-        <div className="fixed top-0 inset-x-0 z-[60] bg-indigo-600 text-white px-4 py-3 shadow-2xl animate-bounce-in">
-          <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+      {/* Banner สถานะ Offline */}
+      {!isOnline && (
+        <div className="bg-amber-500 text-white text-center py-1 text-xs font-bold sticky top-0 z-[100] animate-in slide-in-from-top duration-300">
+          คุณกำลังใช้งานในโหมดออฟไลน์ - คำศัพท์ที่เคยเปิดแล้วจะยังดูได้ปกติ
+        </div>
+      )}
+
+      {!hasApiKey && isOnline && (
+        <div className="fixed top-8 inset-x-4 z-[60] bg-indigo-600 text-white px-6 py-4 rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🔑</span>
-              <p className="font-prompt text-sm leading-tight">
-                <strong>ยังไม่ได้เชื่อมต่อ AI:</strong> ระบบหา API_KEY ไม่เจอ (หรือยังไม่ได้ Redeploy) 
-                <br/><span className="text-xs opacity-80">คลิกปุ่มขวาเพื่อเชื่อมต่อด้วยตัวเองได้ทันที</span>
-              </p>
+              <span className="text-2xl animate-pulse">🔑</span>
+              <div>
+                <p className="font-bold font-prompt text-sm">ยังไม่ได้เชื่อมต่อ AI</p>
+                <p className="text-xs opacity-80">กรุณาเชื่อมต่อ API Key เพื่อใช้งานฟีเจอร์แปลภาษาและเสียงอ่าน</p>
+              </div>
             </div>
             <button 
               onClick={handleOpenKeySelector} 
-              className="bg-white text-indigo-600 px-6 py-2 rounded-full font-bold text-sm hover:bg-indigo-50 transition-colors shadow-lg whitespace-nowrap"
+              className="bg-white text-indigo-600 px-6 py-2 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-md active:scale-95"
             >
-              Connect with Google AI Studio
+              Connect API Key
             </button>
           </div>
         </div>
@@ -128,7 +155,7 @@ const App: React.FC = () => {
                 placeholder="ค้นหาคำศัพท์..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-white/10 border border-white/20 rounded-xl py-3 pl-12 pr-4 focus:bg-white focus:text-gray-900 outline-none transition-all"
+                className="w-full bg-white/10 border border-white/20 rounded-xl py-3 pl-12 pr-4 focus:bg-white focus:text-gray-900 outline-none transition-all font-prompt"
               />
               <svg className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
@@ -137,13 +164,13 @@ const App: React.FC = () => {
         
         <div className="border-t border-white/10 bg-indigo-950/50 overflow-x-auto">
           <div className="max-w-5xl mx-auto px-6 py-3 flex gap-2">
-            <button onClick={() => setFilterMode('all')} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${filterMode === 'all' ? 'bg-white text-indigo-900' : 'bg-white/10'}`}>ทั้งหมด</button>
-            <button onClick={() => setFilterMode('unlearned')} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${filterMode === 'unlearned' ? 'bg-orange-500' : 'bg-white/10'}`}>ยังไม่จำ</button>
-            <button onClick={() => setFilterMode('mastered')} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${filterMode === 'mastered' ? 'bg-emerald-500' : 'bg-white/10'}`}>จำได้แล้ว</button>
-            <button onClick={() => setFilterMode('favorites')} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${filterMode === 'favorites' ? 'bg-red-500' : 'bg-white/10'}`}>ติดดาว</button>
-            <div className="w-px bg-white/10 mx-2"></div>
+            <button onClick={() => setFilterMode('all')} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${filterMode === 'all' ? 'bg-white text-indigo-900' : 'bg-white/10 hover:bg-white/20'}`}>ทั้งหมด</button>
+            <button onClick={() => setFilterMode('unlearned')} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${filterMode === 'unlearned' ? 'bg-orange-500 text-white' : 'bg-white/10 hover:bg-white/20'}`}>ยังไม่จำ</button>
+            <button onClick={() => setFilterMode('mastered')} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${filterMode === 'mastered' ? 'bg-emerald-500 text-white' : 'bg-white/10 hover:bg-white/20'}`}>จำได้แล้ว</button>
+            <button onClick={() => setFilterMode('favorites')} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${filterMode === 'favorites' ? 'bg-red-500 text-white' : 'bg-white/10 hover:bg-white/20'}`}>ติดดาว</button>
+            <div className="w-px bg-white/10 mx-2 self-stretch"></div>
             {['A1', 'A2', 'B1', 'B2'].map(lvl => (
-              <button key={lvl} onClick={() => setActiveLevel(activeLevel === lvl ? null : lvl)} className={`px-4 py-1.5 rounded-full text-xs font-bold ${activeLevel === lvl ? 'bg-indigo-400 text-white' : 'bg-white/10'}`}>{lvl}</button>
+              <button key={lvl} onClick={() => setActiveLevel(activeLevel === lvl ? null : lvl)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${activeLevel === lvl ? 'bg-indigo-400 text-white' : 'bg-white/10 hover:bg-white/20'}`}>{lvl}</button>
             ))}
           </div>
         </div>
@@ -155,7 +182,7 @@ const App: React.FC = () => {
             <button 
               key={item.word} 
               onClick={() => setSelectedWord(item)} 
-              className={`p-5 rounded-2xl shadow-sm border transition-all text-left relative group ${mastered.includes(item.word) ? 'bg-emerald-50 border-emerald-100 opacity-75' : 'bg-white border-gray-100 hover:shadow-md'}`}
+              className={`p-5 rounded-2xl shadow-sm border transition-all text-left relative group ${mastered.includes(item.word) ? 'bg-emerald-50 border-emerald-100 opacity-80' : 'bg-white border-gray-100 hover:shadow-md hover:border-indigo-200 active:scale-95'}`}
             >
               <div className="flex justify-between items-start">
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${item.level === 'A1' ? 'bg-blue-100 text-blue-600' : 'bg-indigo-100 text-indigo-600'}`}>{item.level}</span>
@@ -174,7 +201,7 @@ const App: React.FC = () => {
               {search && (
                 <button 
                   onClick={() => setSelectedWord({ word: search.toLowerCase(), level: 'A1' })}
-                  className="mt-4 bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg flex items-center gap-3 mx-auto"
+                  className="mt-4 bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-3 mx-auto hover:bg-indigo-700 active:scale-95 transition-all"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                   ค้นหา "{search}" ด้วย AI (Oxford 3000)

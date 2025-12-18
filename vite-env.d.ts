@@ -10,16 +10,14 @@ interface AIStudio {
 interface Window {
   /**
    * aistudio global object injected by the environment.
-   * Modifiers and types must match the global definition exactly.
    */
-  // Match the global declaration by removing readonly and optional modifiers.
-  aistudio: AIStudio;
+  // เปลี่ยนเป็น optional เพื่อให้ตรวจสอบได้ง่ายขึ้นในโค้ด
+  aistudio?: AIStudio;
 }
 
 /**
  * Definition for the Process interface.
  * Merges with the existing global Process interface to provide typing for process.env.
- * Property 'env' must be exactly '{ [key: string]: string }' to match the global definition.
  */
 interface Process {
   env: { [key: string]: string };
