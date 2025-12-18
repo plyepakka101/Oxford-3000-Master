@@ -1,23 +1,27 @@
-/// <reference types="vite/client" />
 
-// Interface for the AI Studio key selection utility
+// Removed /// <reference types="vite/client" /> to resolve "Cannot find type definition file" error.
+
 interface AIStudio {
   hasSelectedApiKey(): Promise<boolean>;
   openSelectKey(): Promise<void>;
 }
 
-// Augment the global Window interface with the aistudio property.
-// Using the readonly modifier to ensure compatibility with pre-configured environmental definitions.
 interface Window {
-  readonly aistudio: AIStudio;
+  /**
+   * Fix: Removed 'readonly' modifier to match existing declarations and resolve
+   * the "All declarations of 'aistudio' must have identical modifiers" error.
+   */
+  aistudio: AIStudio;
 }
 
-// Augment the NodeJS global namespace to extend ProcessEnv.
-// This is the recommended approach to define environment variables like API_KEY without
-// conflicting with the built-in 'process' variable declaration.
+/**
+ * Fix: Augment the existing NodeJS.ProcessEnv interface instead of redeclaring the
+ * 'process' variable. This resolves the conflict with standard Node.js type definitions
+ * and avoids "Subsequent variable declarations must have the same type" and 
+ * "Cannot redeclare block-scoped variable" errors.
+ */
 declare namespace NodeJS {
   interface ProcessEnv {
     API_KEY: string;
-    [key: string]: string | undefined;
   }
 }

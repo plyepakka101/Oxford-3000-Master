@@ -97,7 +97,10 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
         const audioData = decodeBase64(base64Audio);
-        // ใช้ Blob เพื่อความปลอดภัยของ type และความเข้ากันได้สูงสุด
+        /**
+         * แก้ไข TS2345: แปลง Uint8Array เป็น Blob ก่อนส่งเข้า Response
+         * เพื่อความเข้ากันได้ของ Type ในทุก browser environment
+         */
         const audioBlob = new Blob([audioData], { type: 'audio/pcm' });
         await cache.put(cacheKey, new Response(audioBlob));
         return await decodeAudioData(audioData, audioContext, 24000, 1);
