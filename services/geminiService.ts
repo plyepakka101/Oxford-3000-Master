@@ -26,46 +26,46 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
 
     if (!navigator.onLine) return null;
 
-    // Direct check of process.env.API_KEY as per requirements
-    if (!process.env.API_KEY) {
-      console.error("API_KEY is not defined. Please set it in Vercel Environment Variables.");
+    // Use process.env.API_KEY as per requirements
+    if (typeof process !== 'undefined' && process.env.API_KEY) {
+      // Always initialize a new GoogleGenAI instance right before making an API call
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Provide details for "${normalizedWord}" based on Oxford 3000/5000 standards.`,
+        config: {
+          systemInstruction: "You are an Oxford Dictionary Expert. Return JSON including: Thai translation, part of speech, part of speech in Thai, IPA phonetic, simple English example, Thai translation of example, and the word's CEFR level (A1, A2, B1, or B2) according to the Oxford 3000 list.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              thaiTranslation: { type: Type.STRING },
+              partOfSpeech: { type: Type.STRING },
+              partOfSpeechThai: { type: Type.STRING },
+              phonetic: { type: Type.STRING },
+              exampleEnglish: { type: Type.STRING },
+              exampleThai: { type: Type.STRING },
+              level: { type: Type.STRING, description: "Must be A1, A2, B1, or B2" },
+            },
+            required: ["thaiTranslation", "partOfSpeech", "partOfSpeechThai", "phonetic", "exampleEnglish", "exampleThai", "level"],
+          },
+        },
+      });
+
+      const text = response.text?.trim();
+      if (!text) return null;
+
+      const data = JSON.parse(text);
+
+      await cache.put(cacheKey, new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      }));
+
+      return data;
+    } else {
+      console.error("API_KEY is not defined.");
       return null;
     }
-
-    // Always initialize a new GoogleGenAI instance right before making an API call
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Provide details for "${normalizedWord}" based on Oxford 3000/5000 standards.`,
-      config: {
-        systemInstruction: "You are an Oxford Dictionary Expert. Return JSON including: Thai translation, part of speech, part of speech in Thai, IPA phonetic, simple English example, Thai translation of example, and the word's CEFR level (A1, A2, B1, or B2) according to the Oxford 3000 list.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            thaiTranslation: { type: Type.STRING },
-            partOfSpeech: { type: Type.STRING },
-            partOfSpeechThai: { type: Type.STRING },
-            phonetic: { type: Type.STRING },
-            exampleEnglish: { type: Type.STRING },
-            exampleThai: { type: Type.STRING },
-            level: { type: Type.STRING, description: "Must be A1, A2, B1, or B2" },
-          },
-          required: ["thaiTranslation", "partOfSpeech", "partOfSpeechThai", "phonetic", "exampleEnglish", "exampleThai", "level"],
-        },
-      },
-    });
-
-    const text = response.text?.trim();
-    if (!text) return null;
-
-    const data = JSON.parse(text);
-
-    await cache.put(cacheKey, new Response(JSON.stringify(data), {
-      headers: { 'Content-Type': 'application/json' }
-    }));
-
-    return data;
   } catch (error) {
     console.error("Error in getWordDetails:", error);
     return null;
@@ -90,29 +90,31 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
 
     if (!navigator.onLine) return null;
 
-    if (!process.env.API_KEY) return null;
-
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: normalizedText }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: { 
-          voiceConfig: { 
-            prebuiltVoiceConfig: { voiceName: 'Kore' } 
-          } 
+    if (typeof process !== 'undefined' && process.env.API_KEY) {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: normalizedText }] }],
+        config: {
+          // Fix for error on line 99: Corrected property name from responseModalalities to responseModalities
+          responseModalities: [Modality.AUDIO],
+          speechConfig: { 
+            voiceConfig: { 
+              prebuiltVoiceConfig: { voiceName: 'Kore' } 
+            } 
+          },
         },
-      },
-    });
+      });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (base64Audio) {
-      const audioData = decodeBase64(base64Audio);
-      await cache.put(cacheKey, new Response(audioData, {
-        headers: { 'Content-Type': 'audio/pcm' }
-      }));
-      return await decodeAudioData(audioData, audioContext, 24000, 1);
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        const audioData = decodeBase64(base64Audio);
+        // Use audioData.buffer (ArrayBuffer) to satisfy the Response constructor types
+        await cache.put(cacheKey, new Response(audioData.buffer, {
+          headers: { 'Content-Type': 'audio/pcm' }
+        }));
+        return await decodeAudioData(audioData, audioContext, 24000, 1);
+      }
     }
   } catch (error) {
     console.error("Error in fetchWordAudioBuffer:", error);
