@@ -1,23 +1,28 @@
-// Removed problematic vite/client reference and resolved aistudio global type naming conflict
 
-declare global {
-  // Fix: Defining the expected AIStudio interface to resolve subsequent declaration conflicts
-  interface AIStudio {
-    hasSelectedApiKey(): Promise<boolean>;
-    openSelectKey(): Promise<void>;
-  }
+/**
+ * Global declaration file for TypeScript.
+ * No 'export' or 'import' at the top level to keep it a global script.
+ */
 
-  interface Window {
-    // Fix: Using readonly and the proper AIStudio type to ensure identical modifiers and structure
-    readonly aistudio: AIStudio;
-  }
+// Fix: Augment the Process and ProcessEnv interfaces to add API_KEY.
+// By not using 'declare var process', we avoid redeclaration conflicts
+// and allow the existing global 'process' (which is of type 'Process') to be extended.
+interface ProcessEnv {
+  API_KEY: string;
+  [key: string]: string | undefined;
 }
 
-declare var process: {
-  env: {
-    API_KEY: string;
-    [key: string]: string | undefined;
-  };
-};
+interface Process {
+  env: ProcessEnv;
+}
 
-export {};
+interface AIStudio {
+  hasSelectedApiKey(): Promise<boolean>;
+  openSelectKey(): Promise<void>;
+}
+
+interface Window {
+  // Fix: Removed 'readonly' modifier to ensure identity with other declarations of 'aistudio'.
+  // All declarations of the same property on an interface must have identical modifiers for successful merging.
+  aistudio: AIStudio;
+}
