@@ -26,10 +26,11 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
 
     if (!navigator.onLine) return null;
 
-    // Use process.env.API_KEY as per requirements
-    if (typeof process !== 'undefined' && process.env.API_KEY) {
-      // Always initialize a new GoogleGenAI instance right before making an API call
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Direct access to process.env.API_KEY as per core instructions.
+    // The vite-env.d.ts now properly declares 'process' globally.
+    const apiKey = process.env.API_KEY;
+    if (apiKey) {
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `Provide details for "${normalizedWord}" based on Oxford 3000/5000 standards.`,
@@ -63,7 +64,7 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
 
       return data;
     } else {
-      console.error("API_KEY is not defined.");
+      console.error("API_KEY is missing in process.env");
       return null;
     }
   } catch (error) {
@@ -90,13 +91,13 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
 
     if (!navigator.onLine) return null;
 
-    if (typeof process !== 'undefined' && process.env.API_KEY) {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY;
+    if (apiKey) {
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: normalizedText }] }],
         config: {
-          // Fix for error on line 99: Corrected property name from responseModalalities to responseModalities
           responseModalities: [Modality.AUDIO],
           speechConfig: { 
             voiceConfig: { 
@@ -109,7 +110,7 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
         const audioData = decodeBase64(base64Audio);
-        // Use audioData.buffer (ArrayBuffer) to satisfy the Response constructor types
+        // Use audioData.buffer to correctly pass an ArrayBuffer to the Response constructor
         await cache.put(cacheKey, new Response(audioData.buffer, {
           headers: { 'Content-Type': 'audio/pcm' }
         }));

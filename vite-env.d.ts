@@ -1,12 +1,9 @@
 
 /**
- * Global declaration file for TypeScript.
- * No 'export' or 'import' at the top level to keep it a global script.
+ * Global declaration file for MASTERING Oxford 3000.
+ * This file provides global type definitions for the environment.
  */
 
-// Fix: Augment the Process and ProcessEnv interfaces to add API_KEY.
-// By not using 'declare var process', we avoid redeclaration conflicts
-// and allow the existing global 'process' (which is of type 'Process') to be extended.
 interface ProcessEnv {
   API_KEY: string;
   [key: string]: string | undefined;
@@ -16,13 +13,19 @@ interface Process {
   env: ProcessEnv;
 }
 
+// Removed 'declare var process: Process' to resolve redeclaration and type mismatch errors.
+// By keeping the 'Process' interface, we augment the existing global declaration 
+// with the necessary 'env' properties.
+
 interface AIStudio {
   hasSelectedApiKey(): Promise<boolean>;
   openSelectKey(): Promise<void>;
 }
 
 interface Window {
-  // Fix: Removed 'readonly' modifier to ensure identity with other declarations of 'aistudio'.
-  // All declarations of the same property on an interface must have identical modifiers for successful merging.
-  aistudio: AIStudio;
+  /**
+   * AIStudio global object for API key management.
+   * Added 'readonly' modifier to match the existing declaration in the host environment.
+   */
+  readonly aistudio: AIStudio;
 }
