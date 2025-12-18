@@ -9,7 +9,7 @@ const App: React.FC = () => {
   const [selectedWord, setSelectedWord] = useState<OxfordWord | null>(null);
   const [activeLevel, setActiveLevel] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<'all' | 'favorites' | 'mastered' | 'unlearned'>('all');
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
   
   const [favorites, setFavorites] = useState<string[]>(() => {
     const saved = localStorage.getItem('oxford3000_favorites');
@@ -20,6 +20,25 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('oxford3000_mastered');
     return saved ? JSON.parse(saved) : [];
   });
+
+  useEffect(() => {
+    const key = process.env.API_KEY;
+    if (!key || key === 'undefined' || key === '') {
+      setHasApiKey(false);
+    } else {
+      setHasApiKey(true);
+    }
+  }, []);
+
+  const handleOpenKeySelector = async () => {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+      await window.aistudio.openSelectKey();
+      // Assume success and refresh
+      window.location.reload();
+    } else {
+      alert("กรุณาตั้งค่า API_KEY ใน Environment Variables และสั่ง Re-deploy ใหม่");
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('oxford3000_favorites', JSON.stringify(favorites));
@@ -57,6 +76,15 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 bg-slate-50">
+      {!hasApiKey && (
+        <div className="bg-amber-50 border-b border-amber-200 p-4 text-center">
+          <p className="text-amber-800 font-prompt text-sm">
+            <strong>⚠️ ไม่พบ API Key:</strong> แอปจะไม่สามารถแปลคำศัพท์หรืออ่านออกเสียงได้
+            <button onClick={handleOpenKeySelector} className="ml-3 underline font-bold text-amber-900">คลิกที่นี่เพื่อเชื่อมต่อ</button>
+          </p>
+        </div>
+      )}
+
       <header className="bg-indigo-900 text-white sticky top-0 z-40 shadow-xl">
         <div className="max-w-5xl mx-auto px-6 py-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -68,7 +96,7 @@ const App: React.FC = () => {
                 <div className="h-2 w-32 bg-indigo-950 rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-400 transition-all duration-500" style={{ width: `${Math.min(progressPercentage, 100)}%` }}></div>
                 </div>
-                <span className="text-xs font-medium text-indigo-200">{mastered.length}/3000 words mastered ({progressPercentage}%)</span>
+                <span className="text-xs font-medium text-indigo-200">{mastered.length}/3000 mastered ({progressPercentage}%)</span>
               </div>
             </div>
             

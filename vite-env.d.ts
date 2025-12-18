@@ -1,5 +1,9 @@
 
-interface AIStudio {
+/**
+ * Interface for the Gemini AI Studio environment functions.
+ * Renamed to GeminiAIStudio to avoid potential naming collisions with existing global interfaces.
+ */
+interface GeminiAIStudio {
   hasSelectedApiKey(): Promise<boolean>;
   openSelectKey(): Promise<void>;
 }
@@ -7,30 +11,24 @@ interface AIStudio {
 interface Window {
   /**
    * aistudio global object injected by the environment.
+   * Re-added 'readonly' to match the modifier used in the environment's internal declarations.
    */
-  // Removed readonly modifier to resolve the "All declarations of 'aistudio' must have identical modifiers" error.
-  aistudio: AIStudio;
+  readonly aistudio: GeminiAIStudio;
 }
 
 /**
  * Definition for ProcessEnv to support process.env.API_KEY.
- * This interface merges with existing global declarations.
+ * The index signature must be strictly 'string' to match the expected global { [key: string]: string } type.
  */
 interface ProcessEnv {
+  [key: string]: string;
   API_KEY: string;
-  [key: string]: string | undefined;
 }
 
 /**
  * Definition for the Process interface.
- * This interface merges with existing global declarations.
+ * Merges with the existing global Process interface to provide typing for process.env.
  */
 interface Process {
   env: ProcessEnv;
 }
-
-/**
- * The 'process' variable is already declared in the global execution context as a block-scoped 
- * variable (const/let). We remove the 'declare var process' to avoid redeclaration errors
- * while relying on the 'Process' interface above to provide the necessary type information.
- */
