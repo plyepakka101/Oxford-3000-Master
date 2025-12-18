@@ -22,13 +22,18 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
         return data;
       } catch (parseError) {
         console.error("Cache parse error for word:", normalizedWord, parseError);
-        // If cache is corrupted, we continue to fetch fresh data
       }
     }
 
-    // Return null if offline and not in cache
     if (!navigator.onLine) return null;
 
+    // Use process.env.API_KEY directly as per guidelines
+    if (!process.env.API_KEY) {
+      console.error("API_KEY is not defined. Please set it in Vercel Environment Variables.");
+      return null;
+    }
+
+    // Always initialize a new GoogleGenAI instance right before making an API call
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -52,12 +57,12 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
       },
     });
 
+    // Access .text property directly (do not call as a method)
     const text = response.text?.trim();
     if (!text) return null;
 
     const data = JSON.parse(text);
 
-    // Save to cache for offline use
     await cache.put(cacheKey, new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' }
     }));
@@ -87,6 +92,10 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
 
     if (!navigator.onLine) return null;
 
+    // Use process.env.API_KEY directly as per guidelines
+    if (!process.env.API_KEY) return null;
+
+    // Always initialize a new GoogleGenAI instance right before making an API call
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
@@ -104,12 +113,9 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const audioData = decodeBase64(base64Audio);
-
-      // Cache the raw PCM bytes
       await cache.put(cacheKey, new Response(audioData, {
         headers: { 'Content-Type': 'audio/pcm' }
       }));
-
       return await decodeAudioData(audioData, audioContext, 24000, 1);
     }
   } catch (error) {
@@ -118,9 +124,7 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
   return null;
 };
 
-/**
- * Helper to decode base64 strings to Uint8Arrays.
- */
+// Implement manual base64 decoding following coding guidelines
 function decodeBase64(base64: string): Uint8Array {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
@@ -130,9 +134,7 @@ function decodeBase64(base64: string): Uint8Array {
   return bytes;
 }
 
-/**
- * Helper to decode raw PCM audio data into an AudioBuffer for playback.
- */
+// Implement manual raw PCM decoding following coding guidelines
 async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
@@ -146,7 +148,6 @@ async function decodeAudioData(
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
     for (let i = 0; i < frameCount; i++) {
-      // Normalize Int16 to Float32 [-1.0, 1.0]
       channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
     }
   }

@@ -52,7 +52,12 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
   };
 
   const playAudio = async () => {
-    if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+    // Initialize AudioContext with cross-browser support and correct sample rate for raw PCM streams
+    if (!audioCtxRef.current) {
+      const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+      audioCtxRef.current = new AudioContextClass({ sampleRate: 24000 });
+    }
+    
     if (!audioBufferRef.current) {
       setAudioLoading(true);
       const buffer = await fetchWordAudioBuffer(word, audioCtxRef.current);
