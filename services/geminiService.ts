@@ -1,12 +1,9 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { GeminiWordResponse } from "../types";
 
-// Unique cache name for data and audio
 const APP_CACHE_NAME = 'oxford-3000-master-cache-v1';
 
-/**
- * Fetches word details from Gemini API with a robust caching layer.
- */
 export const getWordDetails = async (word: string): Promise<GeminiWordResponse | null> => {
   const normalizedWord = word.toLowerCase().trim();
   const cacheKey = `https://api.local/word-details/${normalizedWord}`;
@@ -17,16 +14,14 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
 
     if (cachedResponse) {
       try {
-        const data = await cachedResponse.json();
-        return data;
-      } catch (parseError) {
-        console.error("Cache parse error for word:", normalizedWord, parseError);
+        return await cachedResponse.json();
+      } catch (e) {
+        console.error("Cache parse error", e);
       }
     }
 
     if (!navigator.onLine) return null;
 
-    // Use process.env.API_KEY directly as it is now globally declared
     const apiKey = process.env.API_KEY;
     if (apiKey) {
       const ai = new GoogleGenAI({ apiKey });
@@ -45,7 +40,7 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
               phonetic: { type: Type.STRING },
               exampleEnglish: { type: Type.STRING },
               exampleThai: { type: Type.STRING },
-              level: { type: Type.STRING, description: "Must be A1, A2, B1, or B2" },
+              level: { type: Type.STRING },
             },
             required: ["thaiTranslation", "partOfSpeech", "partOfSpeechThai", "phonetic", "exampleEnglish", "exampleThai", "level"],
           },
@@ -56,23 +51,18 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
       if (!text) return null;
 
       const data = JSON.parse(text);
-
       await cache.put(cacheKey, new Response(JSON.stringify(data), {
         headers: { 'Content-Type': 'application/json' }
       }));
 
       return data;
     }
-    return null;
   } catch (error) {
     console.error("Error in getWordDetails:", error);
-    return null;
   }
+  return null;
 };
 
-/**
- * Fetches and caches pronunciation audio for a given word.
- */
 export const fetchWordAudioBuffer = async (text: string, audioContext: AudioContext): Promise<AudioBuffer | null> => {
   const normalizedText = text.toLowerCase().trim();
   const cacheKey = `https://api.local/word-audio/${normalizedText}`;
@@ -107,9 +97,9 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
         const audioData = decodeBase64(base64Audio);
-        await cache.put(cacheKey, new Response(audioData.buffer, {
-          headers: { 'Content-Type': 'audio/pcm' }
-        }));
+        // ใช้ Blob เพื่อความปลอดภัยของ type และความเข้ากันได้สูงสุด
+        const audioBlob = new Blob([audioData], { type: 'audio/pcm' });
+        await cache.put(cacheKey, new Response(audioBlob));
         return await decodeAudioData(audioData, audioContext, 24000, 1);
       }
     }

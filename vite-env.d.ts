@@ -1,25 +1,23 @@
-/**
- * Global declaration file for Oxford 3000 Master.
- * This ensures 'process' is recognized by the TypeScript compiler during build.
- */
+/// <reference types="vite/client" />
 
-// Fix: Use namespace augmentation for NodeJS.ProcessEnv instead of redeclaring the global 'process' variable to avoid type mismatch and redeclaration errors
-declare namespace NodeJS {
-  interface ProcessEnv {
-    API_KEY: string;
-    [key: string]: string | undefined;
-  }
-}
-
+// Interface for the AI Studio key selection utility
 interface AIStudio {
   hasSelectedApiKey(): Promise<boolean>;
   openSelectKey(): Promise<void>;
 }
 
+// Augment the global Window interface with the aistudio property.
+// Using the readonly modifier to ensure compatibility with pre-configured environmental definitions.
 interface Window {
-  /**
-   * aistudio global object injected by the environment.
-   */
-  // Fix: Remove 'readonly' modifier to ensure consistency with other declarations of the Window interface and fix modifier mismatch error
-  aistudio: AIStudio;
+  readonly aistudio: AIStudio;
+}
+
+// Augment the NodeJS global namespace to extend ProcessEnv.
+// This is the recommended approach to define environment variables like API_KEY without
+// conflicting with the built-in 'process' variable declaration.
+declare namespace NodeJS {
+  interface ProcessEnv {
+    API_KEY: string;
+    [key: string]: string | undefined;
+  }
 }
