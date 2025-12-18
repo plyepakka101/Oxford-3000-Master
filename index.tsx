@@ -11,6 +11,7 @@ if (!rootElement) {
 // Service Worker Registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
+    // ใน production mode ของ Vite ไฟล์ sw.js จะอยู่ที่ root
     navigator.serviceWorker.register('/sw.js').then(registration => {
       console.log('SW registered: ', registration);
     }).catch(registrationError => {
