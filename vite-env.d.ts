@@ -12,7 +12,8 @@ interface Window {
    * aistudio global object injected by the environment.
    * Modifiers and types must match the global definition exactly.
    */
-  aistudio: AIStudio;
+  // Added readonly and optional modifier to match the global declaration provided by the AI Studio environment.
+  readonly aistudio?: AIStudio;
 }
 
 /**

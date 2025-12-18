@@ -2,17 +2,13 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { GeminiWordResponse } from "../types";
 
-const APP_CACHE_NAME = 'oxford-3000-master-cache-v2';
+const APP_CACHE_NAME = 'oxford-3000-master-cache-v3';
 
 function extractJSON(text: string): string {
   const match = text.match(/\{[\s\S]*\}/);
   return match ? match[0] : text;
 }
 
-/**
- * ดึงค่า API Key ที่ถูกต้องที่สุด
- * ตรวจสอบทั้งจาก process.env และค่าว่างที่อาจเกิดจาก Vite build
- */
 const getValidApiKey = (): string | null => {
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey === 'null') {
@@ -40,13 +36,13 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
     const apiKey = getValidApiKey();
     if (!apiKey) throw new Error("MISSING_API_KEY");
 
-    // สร้าง instance ใหม่ทุกครั้งเพื่อให้ได้ key ล่าสุด
+    // Using gemini-3-flash-preview for basic text tasks (dictionary lookup) as per guidelines.
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Provide dictionary details for "${normalizedWord}" for Thai learners.`,
+      model: 'gemini-3-flash-preview', 
+      contents: `Provide dictionary details for "${normalizedWord}" based on Oxford 3000 standards.`,
       config: {
-        systemInstruction: "Expert Oxford Dictionary lexicographer. Output ONLY valid JSON with Thai translations and examples. Use Oxford 3000 levels (A1-B2).",
+        systemInstruction: "You are an Oxford English-Thai Dictionary. Return ONLY valid JSON for the word. Use levels A1, A2, B1, B2, or C1.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -74,12 +70,11 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
 
     return data;
   } catch (error: any) {
-    if (error.message === "MISSING_API_KEY") {
-      console.error("API Key not configured in environment.");
-    } else {
-      console.error("Gemini API Error:", error);
+    console.error("Gemini API Error Details:", error);
+    if (error.message?.includes("API_KEY_INVALID") || error.message?.includes("not found")) {
+      throw new Error("INVALID_KEY");
     }
-    return null;
+    throw error;
   }
 };
 
@@ -101,7 +96,8 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
 
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
+      // Using gemini-2.5-flash-preview-tts for text-to-speech tasks as per guidelines.
+      model: 'gemini-2.5-flash-preview-tts',
       contents: [{ parts: [{ text: normalizedText }] }],
       config: {
         responseModalities: [Modality.AUDIO],

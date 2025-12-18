@@ -40,10 +40,9 @@ const App: React.FC = () => {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       try {
         await window.aistudio.openSelectKey();
-        // Assume success to prevent race conditions as per guidelines
+        // Assume success to prevent race conditions as per guidelines.
+        // The API key is injected automatically via process.env.API_KEY.
         setHasApiKey(true);
-        // Refresh after a short delay to ensure process.env.API_KEY is populated
-        setTimeout(() => window.location.reload(), 300);
       } catch (e) {
         console.error("Failed to open key selector", e);
       }

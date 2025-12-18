@@ -17,6 +17,7 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
   const [details, setDetails] = useState<WordDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<'AUTH' | 'GENERAL' | null>(null);
   
   const [audioLoading, setAudioLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -27,17 +28,33 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
   const fetchData = async () => {
     setLoading(true);
     setError(null);
+    setErrorType(null);
     try {
       const res = await getWordDetails(word);
       if (res) {
         setDetails({ word, ...res });
       } else {
-        setError("ไม่สามารถดึงข้อมูลได้ โปรดตรวจสอบการเชื่อมต่อหรือ API Key");
+        setError("ไม่สามารถดึงข้อมูลได้ โปรดตรวจสอบการเชื่อมต่อ");
+        setErrorType('GENERAL');
       }
-    } catch (e) {
-      setError("เกิดข้อผิดพลาดในการดึงข้อมูล");
+    } catch (e: any) {
+      if (e.message === "MISSING_API_KEY" || e.message === "INVALID_KEY") {
+        setError("ยังไม่ได้เชื่อมต่อ API Key หรือ Key ไม่ถูกต้อง");
+        setErrorType('AUTH');
+      } else {
+        setError("เกิดข้อผิดพลาดในการดึงข้อมูล โปรดลองใหม่อีกครั้ง");
+        setErrorType('GENERAL');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConnectKey = async () => {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+      await window.aistudio.openSelectKey();
+      // สมมติว่าสำเร็จและทำการโหลดใหม่
+      window.location.reload();
     }
   };
 
@@ -127,12 +144,29 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
               <p className="text-gray-400 font-prompt">กำลังค้นหาข้อมูลด้วย AI...</p>
             </div>
           ) : error ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
-              <div className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
+              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
               </div>
-              <p className="text-gray-600 font-prompt max-w-[250px]">{error}</p>
-              <button onClick={fetchData} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors font-prompt">ลองใหม่อีกครั้ง</button>
+              <div>
+                <p className="text-gray-800 font-bold font-prompt text-lg">{error}</p>
+                <p className="text-gray-500 font-prompt text-sm mt-1">
+                  {errorType === 'AUTH' ? 'กรุณาเชื่อมต่อ API Key เพื่อใช้งานฟีเจอร์แปลภาษา' : 'โปรดตรวจสอบอินเทอร์เน็ตของคุณ'}
+                </p>
+              </div>
+              
+              <div className="flex flex-col w-full gap-3">
+                {errorType === 'AUTH' && (
+                  <button 
+                    onClick={handleConnectKey} 
+                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all font-prompt flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                    เชื่อมต่อ API Key ทันที
+                  </button>
+                )}
+                <button onClick={fetchData} className="w-full py-4 border-2 border-gray-100 text-gray-500 rounded-2xl font-bold hover:bg-gray-50 transition-all font-prompt">ลองใหม่อีกครั้ง</button>
+              </div>
             </div>
           ) : details && (
             <div className="flex-1 space-y-6 animate-in slide-in-from-bottom-2 duration-500">
