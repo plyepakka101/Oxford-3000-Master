@@ -26,8 +26,7 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
 
     if (!navigator.onLine) return null;
 
-    // Direct access to process.env.API_KEY as per core instructions.
-    // The vite-env.d.ts now properly declares 'process' globally.
+    // Use process.env.API_KEY directly as it is now globally declared
     const apiKey = process.env.API_KEY;
     if (apiKey) {
       const ai = new GoogleGenAI({ apiKey });
@@ -63,10 +62,8 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
       }));
 
       return data;
-    } else {
-      console.error("API_KEY is missing in process.env");
-      return null;
     }
+    return null;
   } catch (error) {
     console.error("Error in getWordDetails:", error);
     return null;
@@ -110,7 +107,6 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
         const audioData = decodeBase64(base64Audio);
-        // Use audioData.buffer to correctly pass an ArrayBuffer to the Response constructor
         await cache.put(cacheKey, new Response(audioData.buffer, {
           headers: { 'Content-Type': 'audio/pcm' }
         }));
