@@ -1,20 +1,36 @@
 
-// Use interface merging to augment the existing global Process and ProcessEnv types.
-// This avoids the "Cannot redeclare block-scoped variable 'process'" error and 
-// satisfies the requirement for 'process' to match the system-defined 'Process' type.
-interface ProcessEnv {
-  API_KEY: string;
-  [key: string]: string | undefined;
-}
+// Fix: Removed problematic vite/client reference to resolve "Cannot find type definition file" error
+export {};
 
-interface Process {
-  env: ProcessEnv;
-}
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
 
-interface ImportMetaEnv {
-  readonly VITE_API_KEY: string;
-}
+  /**
+   * Fix: Augment the existing NodeJS namespace instead of redeclaring the 'process' variable.
+   * This resolves "Subsequent variable declarations must have the same type" and
+   * "Cannot redeclare block-scoped variable 'process'" errors by extending existing Node types.
+   */
+  namespace NodeJS {
+    interface ProcessEnv {
+      API_KEY: string;
+      [key: string]: string | undefined;
+    }
+  }
 
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
+  /**
+   * Fix: Manually provide ImportMeta types since the vite/client reference was removed.
+   * These define the structure of import.meta.env used in Vite environments.
+   */
+  interface ImportMetaEnv {
+    readonly VITE_API_KEY: string;
+  }
+
+  interface ImportMeta {
+    readonly env: ImportMetaEnv;
+  }
 }
