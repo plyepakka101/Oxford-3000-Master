@@ -52,9 +52,16 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
 
   const handleConnectKey = async () => {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      await window.aistudio.openSelectKey();
-      // สมมติว่าสำเร็จและทำการโหลดใหม่
-      window.location.reload();
+      try {
+        await window.aistudio.openSelectKey();
+        // After opening, assume success and try fetching again
+        // We don't reload the page to keep the modal open and provide immediate feedback
+        fetchData();
+      } catch (err) {
+        console.error("Error opening key selector:", err);
+      }
+    } else {
+      alert("ไม่พบระบบเชื่อมต่อ API Key กรุณาลองใหม่ภายหลัง");
     }
   };
 

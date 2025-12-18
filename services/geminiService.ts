@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { GeminiWordResponse } from "../types";
 
-const APP_CACHE_NAME = 'oxford-3000-master-cache-v3';
+const APP_CACHE_NAME = 'oxford-3000-master-cache-v4';
 
 function extractJSON(text: string): string {
   const match = text.match(/\{[\s\S]*\}/);
@@ -10,6 +10,7 @@ function extractJSON(text: string): string {
 }
 
 const getValidApiKey = (): string | null => {
+  // Directly access the environment variable which is updated by the platform
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey === 'null') {
     return null;
@@ -36,7 +37,7 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
     const apiKey = getValidApiKey();
     if (!apiKey) throw new Error("MISSING_API_KEY");
 
-    // Using gemini-3-flash-preview for basic text tasks (dictionary lookup) as per guidelines.
+    // Re-initialize for every call to ensure the latest API Key is used
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
@@ -96,7 +97,6 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
 
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      // Using gemini-2.5-flash-preview-tts for text-to-speech tasks as per guidelines.
       model: 'gemini-2.5-flash-preview-tts',
       contents: [{ parts: [{ text: normalizedText }] }],
       config: {
