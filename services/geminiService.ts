@@ -4,6 +4,15 @@ import { GeminiWordResponse } from "../types";
 
 const APP_CACHE_NAME = 'oxford-3000-master-cache-v1';
 
+/**
+ * สกัดเฉพาะส่วนที่เป็น JSON string ออกจากข้อความที่ AI ตอบกลับ
+ * ป้องกันกรณี AI ใส่ Markdown backticks มาให้
+ */
+function extractJSON(text: string): string {
+  const match = text.match(/\{[\s\S]*\}/);
+  return match ? match[0] : text;
+}
+
 export const getWordDetails = async (word: string): Promise<GeminiWordResponse | null> => {
   const normalizedWord = word.toLowerCase().trim();
   const cacheKey = `https://api.local/word-details/${normalizedWord}`;
@@ -16,51 +25,58 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
       try {
         return await cachedResponse.json();
       } catch (e) {
-        console.error("Cache parse error", e);
+        console.warn("Cached data invalid, fetching fresh data...");
       }
     }
 
-    if (!navigator.onLine) return null;
+    if (!navigator.onLine) throw new Error("Offline");
 
     const apiKey = process.env.API_KEY;
-    if (apiKey) {
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Provide details for "${normalizedWord}" based on Oxford 3000/5000 standards.`,
-        config: {
-          systemInstruction: "You are an Oxford Dictionary Expert. Return JSON including: Thai translation, part of speech, part of speech in Thai, IPA phonetic, simple English example, Thai translation of example, and the word's CEFR level (A1, A2, B1, or B2) according to the Oxford 3000 list.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              thaiTranslation: { type: Type.STRING },
-              partOfSpeech: { type: Type.STRING },
-              partOfSpeechThai: { type: Type.STRING },
-              phonetic: { type: Type.STRING },
-              exampleEnglish: { type: Type.STRING },
-              exampleThai: { type: Type.STRING },
-              level: { type: Type.STRING },
-            },
-            required: ["thaiTranslation", "partOfSpeech", "partOfSpeechThai", "phonetic", "exampleEnglish", "exampleThai", "level"],
-          },
-        },
-      });
-
-      const text = response.text?.trim();
-      if (!text) return null;
-
-      const data = JSON.parse(text);
-      await cache.put(cacheKey, new Response(JSON.stringify(data), {
-        headers: { 'Content-Type': 'application/json' }
-      }));
-
-      return data;
+    // ตรวจสอบทั้งการมีอยู่และค่าที่เป็นสตริง "undefined" ที่อาจเกิดจาก Vite build
+    if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+      console.error("Gemini API Key is missing or invalid.");
+      return null;
     }
+
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Provide details for "${normalizedWord}" based on Oxford 3000 standards.`,
+      config: {
+        systemInstruction: "You are an Oxford Dictionary Expert. Return ONLY valid JSON including: thaiTranslation, partOfSpeech (English), partOfSpeechThai, phonetic, exampleEnglish, exampleThai, and level (A1, A2, B1, or B2).",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            thaiTranslation: { type: Type.STRING },
+            partOfSpeech: { type: Type.STRING },
+            partOfSpeechThai: { type: Type.STRING },
+            phonetic: { type: Type.STRING },
+            exampleEnglish: { type: Type.STRING },
+            exampleThai: { type: Type.STRING },
+            level: { type: Type.STRING },
+          },
+          required: ["thaiTranslation", "partOfSpeech", "partOfSpeechThai", "phonetic", "exampleEnglish", "exampleThai", "level"],
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) return null;
+
+    const cleanJson = extractJSON(text);
+    const data = JSON.parse(cleanJson);
+    
+    // บันทึกเข้า Cache
+    await cache.put(cacheKey, new Response(JSON.stringify(data), {
+      headers: { 'Content-Type': 'application/json' }
+    }));
+
+    return data;
   } catch (error) {
     console.error("Error in getWordDetails:", error);
+    return null;
   }
-  return null;
 };
 
 export const fetchWordAudioBuffer = async (text: string, audioContext: AudioContext): Promise<AudioBuffer | null> => {
@@ -79,7 +95,7 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
     if (!navigator.onLine) return null;
 
     const apiKey = process.env.API_KEY;
-    if (apiKey) {
+    if (apiKey && apiKey !== 'undefined') {
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
@@ -97,7 +113,6 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
         const audioData = decodeBase64(base64Audio);
-        // ใช้ Blob หุ้ม Uint8Array เพื่อป้องกัน TS2345 ในสภาพแวดล้อมที่เข้มงวด
         const audioBlob = new Blob([audioData.buffer], { type: 'audio/pcm' });
         await cache.put(cacheKey, new Response(audioBlob));
         return await decodeAudioData(audioData, audioContext, 24000, 1);

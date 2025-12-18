@@ -16,7 +16,7 @@ interface WordCardProps {
 const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFavorite, isMastered, onToggleMastered, onClose }) => {
   const [details, setDetails] = useState<WordDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editForm, setEditForm] = useState<WordCustomization>({});
+  const [error, setError] = useState<string | null>(null);
   
   const [audioLoading, setAudioLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -24,22 +24,25 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
 
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
       const res = await getWordDetails(word);
       if (res) {
         setDetails({ word, ...res });
-        setEditForm({
-          thaiTranslation: res.thaiTranslation,
-          exampleEnglish: res.exampleEnglish,
-          exampleThai: res.exampleThai,
-          phonetic: res.phonetic
-        });
+      } else {
+        setError("ไม่สามารถดึงข้อมูลได้ โปรดตรวจสอบการเชื่อมต่อหรือ API Key");
       }
+    } catch (e) {
+      setError("เกิดข้อผิดพลาดในการดึงข้อมูล");
+    } finally {
       setLoading(false);
-    };
-    fetch();
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
     return () => stopAudio();
   }, [word]);
 
@@ -52,7 +55,6 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
   };
 
   const playAudio = async () => {
-    // Initialize AudioContext with cross-browser support and correct sample rate for raw PCM streams
     if (!audioCtxRef.current) {
       const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
       audioCtxRef.current = new AudioContextClass({ sampleRate: 24000 });
@@ -85,18 +87,16 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
           
           <div className="flex items-center justify-between mb-4">
             <span className="px-3 py-1 bg-white/20 text-xs font-bold rounded-full uppercase tracking-widest">{details?.level || level}</span>
-            <div className="flex gap-2">
-              <button onClick={() => onToggleFavorite(word)} className={`p-2 rounded-full hover:bg-white/10 transition-colors ${isFavorite ? 'text-red-400' : 'text-white/50'}`}>
-                <svg className="w-6 h-6" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
-              </button>
-            </div>
+            <button onClick={() => onToggleFavorite(word)} className={`p-2 rounded-full hover:bg-white/10 transition-colors ${isFavorite ? 'text-red-400' : 'text-white/50'}`}>
+              <svg className="w-6 h-6" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+            </button>
           </div>
 
           <div className="flex justify-between items-end">
             <div className="flex-1">
               <h2 className="text-4xl font-bold tracking-tight">{word}</h2>
               <div className="flex flex-wrap items-center gap-2 mt-2">
-                <p className="text-indigo-200 font-mono text-lg">{details?.phonetic}</p>
+                <p className="text-indigo-200 font-mono text-lg">{details?.phonetic || '...'}</p>
                 {details && (
                   <span className="text-white/80 text-[10px] bg-white/10 px-2 py-0.5 rounded border border-white/10 font-prompt">
                     {details.partOfSpeech} • {details.partOfSpeechThai}
@@ -106,8 +106,8 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
             </div>
             <button 
               onClick={playAudio} 
-              disabled={audioLoading} 
-              className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-indigo-900 shadow-lg hover:scale-105 active:scale-95 transition-all flex-shrink-0"
+              disabled={audioLoading || !!error} 
+              className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-indigo-900 shadow-lg hover:scale-105 active:scale-95 transition-all flex-shrink-0 disabled:opacity-50"
             >
               {audioLoading ? (
                 <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -120,14 +120,22 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
           </div>
         </div>
 
-        <div className="p-8 space-y-6">
+        <div className="p-8 min-h-[300px] flex flex-col">
           {loading ? (
-            <div className="flex flex-col items-center py-10 space-y-4">
+            <div className="flex-1 flex flex-col items-center justify-center space-y-4">
               <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-              <p className="text-gray-400 font-prompt">กำลังค้นหาข้อมูลภาษาไทย...</p>
+              <p className="text-gray-400 font-prompt">กำลังค้นหาข้อมูลด้วย AI...</p>
+            </div>
+          ) : error ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              </div>
+              <p className="text-gray-600 font-prompt max-w-[250px]">{error}</p>
+              <button onClick={fetchData} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors font-prompt">ลองใหม่อีกครั้ง</button>
             </div>
           ) : details && (
-            <>
+            <div className="flex-1 space-y-6 animate-in slide-in-from-bottom-2 duration-500">
               <div>
                 <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-1">คำแปลภาษาไทย</h3>
                 <p className="text-2xl font-bold text-gray-800 font-prompt leading-snug">{details.thaiTranslation}</p>
@@ -141,13 +149,13 @@ const WordCard: React.FC<WordCardProps> = ({ word, level, isFavorite, onToggleFa
               </div>
               <button 
                 onClick={() => onToggleMastered(word)} 
-                className={`w-full py-4 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${isMastered ? 'bg-slate-100 text-slate-500' : 'bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98]'}`}
+                className={`w-full py-4 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 mt-auto ${isMastered ? 'bg-slate-100 text-slate-500' : 'bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98]'}`}
               >
                 {isMastered ? (
                   <>จำได้แล้ว <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg></>
                 ) : 'คลิกหากจำคำนี้ได้แล้ว'}
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>
