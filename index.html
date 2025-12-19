@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1e1b4b">
     
     <!-- iOS PWA Support -->
@@ -16,7 +16,7 @@
     <link rel="manifest" href="/manifest.json">
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
     
     <style>
         body {
@@ -25,6 +25,8 @@
             -webkit-tap-highlight-color: transparent;
             /* ป้องกันการดึงหน้าจอเพื่อ Refresh ใน PWA */
             overscroll-behavior-y: contain;
+            /* Account for iOS safe areas */
+            padding-bottom: env(safe-area-inset-bottom);
         }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -34,6 +36,9 @@
         @media all and (display-mode: standalone) {
             header { padding-top: env(safe-area-inset-top); }
         }
+
+        .font-prompt { font-family: 'Prompt', sans-serif; }
+        .font-inter { font-family: 'Inter', sans-serif; }
     </style>
 <script type="importmap">
 {
