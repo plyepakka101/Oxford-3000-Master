@@ -9,7 +9,7 @@ const App: React.FC = () => {
   const [selectedWord, setSelectedWord] = useState<OxfordWord | null>(null);
   const [activeLevel, setActiveLevel] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<'all' | 'favorites' | 'mastered' | 'unlearned'>('all');
-  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(true); // เริ่มต้นเป็น true ไว้ก่อนเพื่อไม่ให้ Banner ขวาง
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -35,34 +35,47 @@ const App: React.FC = () => {
 
   const checkApiKey = async () => {
     try {
+      // 1. เช็คจาก Environment Variable ก่อน (รองรับ Vercel)
+      const envKey = process.env.API_KEY;
+      const isEnvKeyValid = !!(envKey && envKey !== 'undefined' && envKey !== '' && envKey !== 'null');
+      
+      if (isEnvKeyValid) {
+        setHasApiKey(true);
+        return;
+      }
+
+      // 2. เช็คจาก AI Studio Dialog (ถ้ามี)
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const selected = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(selected);
       } else {
-        const key = process.env.API_KEY;
-        const exists = !!(key && key !== 'undefined' && key !== '' && key !== 'null');
-        setHasApiKey(exists);
+        // ถ้าไม่มีทั้งสองอย่าง แสดงว่าไม่ได้ต่อ
+        setHasApiKey(false);
       }
     } catch (err) {
-      setHasApiKey(true);
+      console.warn("API Key check skipped or failed", err);
+      setHasApiKey(true); // Fallback เป็น true เพื่อให้ลองเรียก API ดูก่อน
     }
   };
 
   useEffect(() => {
     checkApiKey();
-    const interval = setInterval(checkApiKey, 5000);
+    // เช็คทุก 10 วินาทีพอ ไม่ต้องถี่มากเพื่อป้องกันปัญหา Race Condition
+    const interval = setInterval(checkApiKey, 10000);
     return () => clearInterval(interval);
   }, []);
 
   const handleOpenKeySelector = async () => {
-    const studio = window.aistudio;
-    if (studio && typeof studio.openSelectKey === 'function') {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       try {
-        await studio.openSelectKey();
-        setHasApiKey(true);
+        await window.aistudio.openSelectKey();
+        setHasApiKey(true); // บังคับเป็น true ทันทีหลังกด (กฎ Race Condition)
       } catch (e) {
         console.error("Failed to open key selector", e);
       }
+    } else {
+      // ถ้าเปิด Dialog ไม่ได้ ให้แจ้งเตือนวิธีตั้งค่าบน Vercel
+      alert("กรุณาตั้งค่า API_KEY ใน Environment Variables ของ Vercel และ Re-deploy อีกครั้ง");
     }
   };
 
@@ -109,18 +122,18 @@ const App: React.FC = () => {
       )}
 
       {!hasApiKey && isOnline && (
-        <div className="fixed top-8 inset-x-4 z-[60] bg-indigo-600 text-white px-6 py-4 rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300">
+        <div className="fixed top-8 inset-x-4 z-[60] bg-indigo-600 text-white px-6 py-4 rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 border-2 border-white/20">
           <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="text-2xl animate-pulse">🔑</span>
               <div>
                 <p className="font-bold font-prompt text-sm">ยังไม่ได้เชื่อมต่อ AI</p>
-                <p className="text-xs opacity-80">กรุณาเชื่อมต่อ API Key เพื่อใช้งานฟีเจอร์แปลภาษาและเสียงอ่าน</p>
+                <p className="text-xs opacity-80 leading-relaxed">กรุณากดปุ่มด้านขวาเพื่อเปิดหน้าต่างเลือก API Key (หรือตั้งค่าใน Vercel)</p>
               </div>
             </div>
             <button 
               onClick={handleOpenKeySelector} 
-              className="bg-white text-indigo-600 px-6 py-2 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-md active:scale-95"
+              className="bg-white text-indigo-600 px-6 py-2 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-md active:scale-95 whitespace-nowrap"
             >
               Connect API Key
             </button>
