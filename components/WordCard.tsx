@@ -201,11 +201,18 @@ const WordCard: React.FC<WordCardProps> = ({
               <h2 id="word-title" className="text-4xl sm:text-5xl font-black text-white tracking-tight break-words">{word}</h2>
               <div className="flex items-baseline gap-3 mt-3 overflow-hidden">
                 <span className="text-indigo-200 font-mono text-xl sm:text-2xl whitespace-nowrap">{details?.phonetic || '/.../'}</span>
-                {details?.partOfSpeech && (
-                  <span className="text-white/70 text-xs font-bold uppercase bg-white/10 px-2 py-0.5 rounded border border-white/10 truncate">
-                    {details.partOfSpeech}
-                  </span>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {details?.partOfSpeech && (
+                    <span className="text-white/70 text-xs font-bold uppercase bg-white/10 px-2 py-0.5 rounded border border-white/10 truncate">
+                      {details.partOfSpeech}
+                    </span>
+                  )}
+                  {details?.partOfSpeechThai && (
+                    <span className="text-white/70 text-xs font-bold font-prompt bg-white/10 px-2 py-0.5 rounded border border-white/10 truncate">
+                      {details.partOfSpeechThai}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -236,9 +243,6 @@ const WordCard: React.FC<WordCardProps> = ({
               <h3 id="heading-translation" className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest mb-3">Thai Translation</h3>
               <div className="bg-indigo-50/50 rounded-2xl p-5 border border-indigo-100/50">
                 <p className="text-3xl font-bold text-slate-800 font-prompt leading-tight">{displayTranslation}</p>
-                {details?.partOfSpeechThai && (
-                  <span className="inline-block mt-2 text-indigo-600/70 text-xs font-prompt font-medium">({details.partOfSpeechThai})</span>
-                )}
               </div>
             </section>
 
