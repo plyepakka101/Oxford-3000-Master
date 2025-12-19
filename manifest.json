@@ -1,10 +1,11 @@
 
 {
   "name": "Oxford 3000 Master",
-  "short_name": "Oxford3000",
-  "description": "Master the Oxford 3000 vocabulary list with Gemini AI translations.",
+  "short_name": "Oxford 3000",
+  "description": "เรียนรู้คำศัพท์ Oxford 3000 พร้อมคำแปลและเสียงอ่านด้วย AI",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#1e1b4b",
   "theme_color": "#1e1b4b",
   "icons": [
@@ -12,7 +13,14 @@
       "src": "https://cdn-icons-png.flaticon.com/512/2991/2991148.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2991/2991148.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "categories": ["education", "books"]
 }
