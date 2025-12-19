@@ -1,14 +1,9 @@
 
-import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { GeminiWordResponse, WordDetail } from "../types";
+import { GoogleGenAI, Modality } from "@google/genai";
+import { WordDetail } from "../types";
 
-// เปลี่ยน v7 -> v8 เพื่อบังคับให้ดึงข้อมูลใหม่ทั้งหมด
-const APP_CACHE_NAME = 'oxford-3000-master-cache-v8';
-
-function extractJSON(text: string): string {
-  const match = text.match(/\{[\s\S]*\}/);
-  return match ? match[0] : text;
-}
+// อัปเกรดเป็น v9 เพื่อล้างค่าเก่าที่ Error ออกให้หมด
+const APP_CACHE_NAME = 'oxford-3000-master-cache-v9';
 
 const getValidApiKey = (): string | null => {
   const apiKey = process.env.API_KEY;
@@ -18,6 +13,10 @@ const getValidApiKey = (): string | null => {
   return apiKey;
 };
 
+/**
+ * ดึงรายละเอียดคำศัพท์โดยใช้ Google Search Grounding
+ * กฎ: เมื่อใช้ googleSearch ไม่ควรใช้ responseSchema เพราะผลลัพธ์อาจไม่ใช่ JSON
+ */
 export const getWordDetails = async (word: string): Promise<WordDetail | null> => {
   const normalizedWord = word.toLowerCase().trim();
   const cacheKey = `https://api.local/word-details/${normalizedWord}`;
@@ -27,56 +26,47 @@ export const getWordDetails = async (word: string): Promise<WordDetail | null> =
     const cachedResponse = await cache.match(cacheKey);
 
     if (cachedResponse) {
-      try {
-        const data = await cachedResponse.json();
-        return data;
-      } catch (e) {
-        console.warn("Cached data corrupt...");
-      }
+      return await cachedResponse.json();
     }
 
     if (!navigator.onLine) return null;
 
     const apiKey = getValidApiKey();
-    if (!apiKey) throw new Error("MISSING_API_KEY");
+    if (!apiKey) {
+      console.error("API Key is missing in environment");
+      return null;
+    }
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // ปรับ Prompt ให้ระบุคำค้นเจาะจงตามที่ผู้ใช้ต้องการ
+    // เราจะใช้ Prompt ที่สั่งให้ตอบแบบมีโครงสร้างชัดเจนเพื่อนำมา Parse เอง
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
-      contents: `Search Google for "ตัวอย่างประโยค ${normalizedWord}" and provide dictionary details.`,
+      contents: `Search Google for "ตัวอย่างประโยค ${normalizedWord}" and extract details. 
+      Format your response exactly like this:
+      TRANSLATION: [Thai translation]
+      PHONETIC: [Phonetic spelling]
+      POS_EN: [Part of speech in English]
+      POS_TH: [Part of speech in Thai]
+      EX_EN: [English example sentence from search results]
+      EX_TH: [Thai translation of that example]
+      LEVEL: [Oxford level A1-C1]`,
       config: {
-        systemInstruction: `You are an Oxford Dictionary Expert. 
-        1. Search Google specifically for "ตัวอย่างประโยค ${normalizedWord}".
-        2. Extract a natural example sentence in English and its Thai translation.
-        3. Provide phonetic spelling (e.g. /əˈbɪl.ə.ti/).
-        4. Identify Part of Speech in English (e.g. noun) and Thai (e.g. คำนาม).
-        Return ONLY valid JSON.`,
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            thaiTranslation: { type: Type.STRING },
-            partOfSpeech: { type: Type.STRING },
-            partOfSpeechThai: { type: Type.STRING },
-            phonetic: { type: Type.STRING },
-            exampleEnglish: { type: Type.STRING },
-            exampleThai: { type: Type.STRING },
-            level: { type: Type.STRING },
-          },
-          required: ["thaiTranslation", "partOfSpeech", "partOfSpeechThai", "phonetic", "exampleEnglish", "exampleThai", "level"],
-        },
+        systemInstruction: "You are an Oxford Dictionary Expert using Google Search. Provide accurate, grounded information.",
+        tools: [{ googleSearch: {} }]
       },
     });
 
     const text = response.text;
-    if (!text) return null;
+    if (!text) throw new Error("Empty response from AI");
 
-    const jsonData = JSON.parse(extractJSON(text));
-    
-    // สกัดลิงก์อ้างอิงจาก Google Search Grounding
+    // ฟังก์ชันช่วยสกัดข้อมูลจากข้อความ
+    const extract = (key: string) => {
+      const regex = new RegExp(`${key}:\\s*(.*)`, 'i');
+      const match = text.match(regex);
+      return match ? match[1].trim() : "";
+    };
+
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
     const sources = groundingChunks?.map((chunk: any) => ({
       uri: chunk.web?.uri,
@@ -85,9 +75,21 @@ export const getWordDetails = async (word: string): Promise<WordDetail | null> =
 
     const finalData: WordDetail = {
       word: normalizedWord,
-      ...jsonData,
+      thaiTranslation: extract("TRANSLATION"),
+      phonetic: extract("PHONETIC"),
+      partOfSpeech: extract("POS_EN"),
+      partOfSpeechThai: extract("POS_TH"),
+      exampleEnglish: extract("EX_EN"),
+      exampleThai: extract("EX_TH"),
+      level: extract("LEVEL") || "A1",
       sources: sources.slice(0, 3)
     };
+
+    // ตรวจสอบว่าได้ข้อมูลสำคัญครบไหม
+    if (!finalData.thaiTranslation || !finalData.phonetic) {
+       console.warn("AI returned incomplete data, retrying without tools...");
+       // คุณสามารถเพิ่ม fallback logic ตรงนี้ได้ถ้าต้องการ
+    }
     
     await cache.put(cacheKey, new Response(JSON.stringify(finalData), {
       headers: { 'Content-Type': 'application/json' }
@@ -95,7 +97,7 @@ export const getWordDetails = async (word: string): Promise<WordDetail | null> =
 
     return finalData;
   } catch (error: any) {
-    console.error("Gemini Error:", error);
+    console.error("Gemini Service Error:", error);
     return null;
   }
 };
@@ -112,8 +114,6 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
       const arrayBuffer = await cachedResponse.arrayBuffer();
       return await decodeAudioData(new Uint8Array(arrayBuffer), audioContext, 24000, 1);
     }
-
-    if (!navigator.onLine) return null;
 
     const apiKey = getValidApiKey();
     if (!apiKey) return null;

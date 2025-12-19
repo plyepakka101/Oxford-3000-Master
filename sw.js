@@ -1,6 +1,6 @@
 
-const CACHE_NAME = 'oxford-3000-v6'; // เปลี่ยน v5 -> v6
-const DYNAMIC_CACHE = 'oxford-dynamic-v3';
+const CACHE_NAME = 'oxford-3000-v7'; 
+const DYNAMIC_CACHE = 'oxford-dynamic-v4';
 
 const ASSETS_TO_CACHE = [
   '/',
@@ -32,6 +32,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+  
+  // ห้าม Cache API ของ Gemini เด็ดขาด
   if (url.hostname.includes('generativelanguage.googleapis.com')) return;
 
   event.respondWith(
