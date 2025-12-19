@@ -16,7 +16,6 @@ const WordCard: React.FC<WordCardProps> = ({ wordData, isFavorite, onToggleFavor
   const { word, level, translation: staticTranslation } = wordData;
   const [details, setDetails] = useState<WordDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  // แก้ไข: จะแสดงสถานะ Offline เฉพาะเมื่อ "ไม่มีเน็ต" และ "ไม่มีข้อมูลในเครื่อง" เท่านั้น
   const [showOfflineWarning, setShowOfflineWarning] = useState(false);
   
   const [audioLoading, setAudioLoading] = useState(false);
@@ -30,10 +29,9 @@ const WordCard: React.FC<WordCardProps> = ({ wordData, isFavorite, onToggleFavor
     try {
       const res = await getWordDetails(word);
       if (res) {
-        setDetails({ word, ...res });
+        setDetails(res);
         setShowOfflineWarning(false);
       } else {
-        // ถ้าดึงไม่ได้ (เช่น ออฟไลน์และไม่มี cache)
         setShowOfflineWarning(!navigator.onLine);
       }
     } catch (e: any) {
@@ -47,15 +45,6 @@ const WordCard: React.FC<WordCardProps> = ({ wordData, isFavorite, onToggleFavor
     fetchData();
     return () => stopAudio();
   }, [word]);
-
-  // เมื่อเน็ตกลับมา ให้ลองโหลดข้อมูลใหม่เพื่ออัปเดต cache
-  useEffect(() => {
-    const handleOnline = () => {
-      if (!details) fetchData();
-    };
-    window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
-  }, [details]);
 
   const stopAudio = () => {
     if (sourceNodeRef.current) {
@@ -94,7 +83,7 @@ const WordCard: React.FC<WordCardProps> = ({ wordData, isFavorite, onToggleFavor
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-300">
-        {/* Header */}
+        {/* Header Section */}
         <div className={`p-8 text-white relative transition-colors duration-500 ${isMastered ? 'bg-emerald-600' : 'bg-indigo-900'}`}>
           <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -103,12 +92,8 @@ const WordCard: React.FC<WordCardProps> = ({ wordData, isFavorite, onToggleFavor
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 bg-white/20 text-xs font-bold rounded-full uppercase tracking-widest">{displayLevel}</span>
-              {/* แสดงป้าย Offline เฉพาะเมื่อข้อมูลไม่ครบและไม่มีเน็ตจริงๆ เท่านั้น */}
               {showOfflineWarning && !details && (
                 <span className="px-2 py-1 bg-amber-500 text-[10px] font-bold rounded-md uppercase shadow-sm">Offline</span>
-              )}
-              {details && !navigator.onLine && (
-                <span className="px-2 py-1 bg-white/10 text-[10px] font-bold rounded-md uppercase border border-white/20">Cached</span>
               )}
             </div>
             <button onClick={() => onToggleFavorite(word)} className={`p-2 rounded-full hover:bg-white/10 transition-colors ${isFavorite ? 'text-red-400' : 'text-white/50'}`}>
@@ -119,12 +104,18 @@ const WordCard: React.FC<WordCardProps> = ({ wordData, isFavorite, onToggleFavor
           <div className="flex justify-between items-end">
             <div className="flex-1">
               <h2 className="text-4xl font-bold tracking-tight">{word}</h2>
+              {/* รายละเอียดคำอ่านและประเภทคำใต้ชื่อคำศัพท์ */}
               <div className="flex flex-wrap items-center gap-2 mt-2">
-                <p className="text-indigo-200 font-mono text-lg">{details?.phonetic || '...'}</p>
+                <p className="text-indigo-200 font-mono text-lg">{details?.phonetic || '/.../'}</p>
                 {details && (
-                  <span className="text-white/80 text-[10px] bg-white/10 px-2 py-0.5 rounded border border-white/10 font-prompt">
-                    {details.partOfSpeech} • {details.partOfSpeechThai}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-white/90 text-[10px] bg-white/20 px-2 py-0.5 rounded font-bold uppercase">
+                      {details.partOfSpeech}
+                    </span>
+                    <span className="text-white/70 text-[10px] font-prompt">
+                      ({details.partOfSpeechThai})
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -144,8 +135,8 @@ const WordCard: React.FC<WordCardProps> = ({ wordData, isFavorite, onToggleFavor
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-8 min-h-[300px] flex flex-col">
+        {/* Details Section */}
+        <div className="p-8 min-h-[350px] flex flex-col">
           <div className="flex-1 space-y-6">
             <div>
               <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-1">คำแปลภาษาไทย</h3>
@@ -153,26 +144,51 @@ const WordCard: React.FC<WordCardProps> = ({ wordData, isFavorite, onToggleFavor
             </div>
 
             {loading && !details && (
-              <div className="flex items-center gap-3 text-slate-400 py-4">
+              <div className="flex items-center gap-3 text-slate-400 py-4 animate-pulse">
                 <div className="w-4 h-4 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-                <p className="text-sm font-prompt">กำลังโหลดข้อมูล...</p>
+                <p className="text-sm font-prompt">กำลังค้นหาตัวอย่างจาก Google Search...</p>
               </div>
             )}
 
             {details && (
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">ตัวอย่างประโยค</h3>
-                <div>
-                  <p className="text-gray-800 font-medium italic">"{details.exampleEnglish}"</p>
-                  <p className="text-gray-500 text-sm font-prompt mt-1">"{details.exampleThai}"</p>
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex justify-between items-center">
+                    ตัวอย่างจากอินเทอร์เน็ต
+                    <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded">Google Grounded</span>
+                  </h3>
+                  <div>
+                    <p className="text-gray-800 font-medium italic">"{details.exampleEnglish}"</p>
+                    <p className="text-gray-500 text-sm font-prompt mt-1">"{details.exampleThai}"</p>
+                  </div>
                 </div>
+
+                {/* แหล่งที่มาอ้างอิง */}
+                {details.sources && details.sources.length > 0 && (
+                  <div className="px-1">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">อ้างอิงแหล่งที่มา:</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {details.sources.map((source, idx) => (
+                        <a 
+                          key={idx} 
+                          href={source.uri} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-[10px] text-indigo-500 hover:text-indigo-700 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100 transition-colors truncate max-w-[150px]"
+                        >
+                          {source.title || "ลิงก์อ้างอิง"}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             
             {!details && !loading && showOfflineWarning && (
               <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100">
                 <p className="text-amber-800 text-xs font-prompt">
-                  ไม่พบข้อมูลในเครื่องและไม่ได้เชื่อมต่ออินเทอร์เน็ต กรุณาเปิดเน็ตเพื่อโหลดข้อมูลจาก AI ในครั้งแรกครับ
+                  ออฟไลน์: ไม่สามารถค้นหาประโยคตัวอย่างใหม่จาก Google ได้ในขณะนี้
                 </p>
               </div>
             )}

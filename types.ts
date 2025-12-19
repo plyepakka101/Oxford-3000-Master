@@ -7,7 +7,8 @@ export interface WordDetail {
   phonetic: string;
   exampleEnglish: string;
   exampleThai: string;
-  level: string; // เพิ่มให้ AI ระบุ Level เสมอ
+  level: string;
+  sources?: { uri: string; title: string }[]; // สำหรับเก็บแหล่งที่มาจาก Google Search
 }
 
 export interface OxfordWord {
@@ -23,7 +24,7 @@ export interface GeminiWordResponse {
   phonetic: string;
   exampleEnglish: string;
   exampleThai: string;
-  level: string; // ระบุระดับตาม Oxford 3000 (A1, A2, B1, B2)
+  level: string;
 }
 
 export interface WordCustomization {

@@ -1,9 +1,8 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { GeminiWordResponse } from "../types";
+import { GeminiWordResponse, WordDetail } from "../types";
 
-// ใช้ชื่อ Cache เดิมเพื่อให้ข้อมูลที่เคยเก็บไว้ยังอยู่
-const APP_CACHE_NAME = 'oxford-3000-master-cache-v6';
+const APP_CACHE_NAME = 'oxford-3000-master-cache-v7';
 
 function extractJSON(text: string): string {
   const match = text.match(/\{[\s\S]*\}/);
@@ -19,11 +18,9 @@ const getValidApiKey = (): string | null => {
 };
 
 /**
- * ดึงรายละเอียดคำศัพท์
- * 1. เช็ค Cache ก่อน (ความเร็วสูงสุด)
- * 2. ถ้าไม่มีใน Cache และ Online ให้ดึงจาก AI และบันทึกลง Cache
+ * ดึงรายละเอียดคำศัพท์พร้อมใช้ Google Search หาตัวอย่างประโยค
  */
-export const getWordDetails = async (word: string): Promise<GeminiWordResponse | null> => {
+export const getWordDetails = async (word: string): Promise<WordDetail | null> => {
   const normalizedWord = word.toLowerCase().trim();
   const cacheKey = `https://api.local/word-details/${normalizedWord}`;
   
@@ -31,7 +28,6 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
     const cache = await caches.open(APP_CACHE_NAME);
     const cachedResponse = await cache.match(cacheKey);
 
-    // ถ้ามีใน Cache แล้ว คืนค่าทันทีเพื่อให้แอป "เร็วเหมือน Native"
     if (cachedResponse) {
       try {
         const data = await cachedResponse.json();
@@ -41,18 +37,19 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
       }
     }
 
-    // ถ้าไม่มีใน Cache และ Offline อยู่ จะคืนค่า null เพื่อให้ UI ใช้ Fallback
     if (!navigator.onLine) return null;
 
     const apiKey = getValidApiKey();
     if (!apiKey) throw new Error("MISSING_API_KEY");
 
     const ai = new GoogleGenAI({ apiKey });
+    // ใช้ Google Search เพื่อหาตัวอย่างประโยคตามคำที่ผู้ใช้ระบุ
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
-      contents: `Provide dictionary details for "${normalizedWord}" based on Oxford 3000 standards.`,
+      contents: `Provide dictionary details for "${normalizedWord}". Use Google Search to find high-quality English and Thai example sentences using the search term: "ตัวอย่างประโยค ${normalizedWord}".`,
       config: {
-        systemInstruction: "You are an Oxford English-Thai Dictionary. Return ONLY valid JSON. Ensure level matches Oxford 3000 (A1-C1).",
+        systemInstruction: "You are an expert English-Thai lexicographer. Return ONLY a valid JSON object. For examples, use real-world results found via Google Search.",
+        tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -73,25 +70,32 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
     const text = response.text;
     if (!text) return null;
 
-    const data = JSON.parse(extractJSON(text));
+    const jsonData = JSON.parse(extractJSON(text));
     
-    // บันทึกลง Cache สำหรับการเปิดครั้งหน้า
-    await cache.put(cacheKey, new Response(JSON.stringify(data), {
+    // สกัดแหล่งที่มาจาก Grounding Metadata
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+    const sources = groundingChunks?.map((chunk: any) => ({
+      uri: chunk.web?.uri,
+      title: chunk.web?.title
+    })).filter((s: any) => s.uri) || [];
+
+    const finalData: WordDetail = {
+      word: normalizedWord,
+      ...jsonData,
+      sources: sources.slice(0, 3) // เก็บ 3 แหล่งอ้างอิงแรก
+    };
+    
+    await cache.put(cacheKey, new Response(JSON.stringify(finalData), {
       headers: { 'Content-Type': 'application/json' }
     }));
 
-    return data;
+    return finalData;
   } catch (error: any) {
     console.error("Gemini Error:", error);
     return null;
   }
 };
 
-/**
- * ดึงไฟล์เสียง
- * 1. เช็คใน Cache ก่อน (เล่นได้ทันทีแม้ไม่มีเน็ต)
- * 2. ถ้าไม่มีและ Online ให้เจนเนอเรทใหม่และบันทึกลง Cache
- */
 export const fetchWordAudioBuffer = async (text: string, audioContext: AudioContext): Promise<AudioBuffer | null> => {
   const normalizedText = text.toLowerCase().trim();
   const cacheKey = `https://api.local/word-audio/${normalizedText}`;
@@ -125,7 +129,6 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const audioData = decode(base64Audio);
-      // เก็บเสียงดิบลง Cache
       await cache.put(cacheKey, new Response(audioData, {
         headers: { 'Content-Type': 'audio/pcm' }
       }));
