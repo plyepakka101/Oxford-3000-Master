@@ -22,21 +22,17 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // ตรวจสอบสถานะการเชื่อมต่อเน็ต
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // ตรวจสอบ API Key
   const checkApiKey = async () => {
     try {
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
@@ -48,7 +44,6 @@ const App: React.FC = () => {
         setHasApiKey(exists);
       }
     } catch (err) {
-      console.warn("API Key check failed", err);
       setHasApiKey(true);
     }
   };
@@ -107,7 +102,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 bg-slate-50">
-      {/* Banner สถานะ Offline */}
       {!isOnline && (
         <div className="bg-amber-500 text-white text-center py-1 text-xs font-bold sticky top-0 z-[100] animate-in slide-in-from-top duration-300">
           คุณกำลังใช้งานในโหมดออฟไลน์ - คำศัพท์ที่เคยเปิดแล้วจะยังดูได้ปกติ
@@ -193,29 +187,11 @@ const App: React.FC = () => {
             </button>
           ))}
         </div>
-
-        {filteredWords.length === 0 && (
-          <div className="py-20 text-center">
-            <div className="bg-white p-10 rounded-3xl shadow-sm inline-block border-2 border-dashed border-gray-200">
-              <h3 className="text-xl font-bold text-gray-700 mb-2 font-prompt">ไม่พบคำศัพท์ที่ค้นหา</h3>
-              {search && (
-                <button 
-                  onClick={() => setSelectedWord({ word: search.toLowerCase(), level: 'A1' })}
-                  className="mt-4 bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-3 mx-auto hover:bg-indigo-700 active:scale-95 transition-all"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                  ค้นหา "{search}" ด้วย AI (Oxford 3000)
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </main>
 
       {selectedWord && (
         <WordCard 
-          word={selectedWord.word} 
-          level={selectedWord.level}
+          wordData={selectedWord}
           isFavorite={favorites.includes(selectedWord.word)}
           onToggleFavorite={toggleFavorite}
           isMastered={mastered.includes(selectedWord.word)}

@@ -1,29 +1,24 @@
 
-const CACHE_NAME = 'oxford-3000-v3';
+const CACHE_NAME = 'oxford-3000-v4';
 const DYNAMIC_CACHE = 'oxford-dynamic-v1';
 
-// ไฟล์หลักที่ต้องมีเพื่อให้แอปเปิดขึ้นมาได้
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/index.tsx',
   '/manifest.json',
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600&display=swap'
 ];
 
-// Install Event: เก็บไฟล์พื้นฐาน
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Pre-caching offline assets');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
   self.skipWaiting();
 });
 
-// Activate Event: ลบ Cache เก่า
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -36,23 +31,23 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch Event: กลยุทธ์การดึงข้อมูล
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
 
-  // 1. ถ้าเป็น Gemini API (Generative Language) - ไม่ต้องยุ่ง ปล่อยให้ geminiService จัดการผ่าน Cache API เอง
+  // ข้าม Gemini API
   if (url.hostname.includes('generativelanguage.googleapis.com')) return;
 
-  // 2. ถ้าเป็นโมดูลจาก esm.sh หรือ Google Fonts ให้ใช้ Cache First แล้วค่อย Update (Stale-While-Revalidate)
-  if (url.hostname.includes('esm.sh') || url.hostname.includes('fonts.gstatic.com')) {
+  // สำหรับไฟล์จาก Origin เดียวกัน (เช่น .tsx, .ts, .js ภายในโปรเจกต์)
+  // ใช้กลยุทธ์ Cache First เพื่อความเร็วแบบ Native App
+  if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         const fetchPromise = fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const cacheCopy = networkResponse.clone();
-            caches.open(DYNAMIC_CACHE).then((cache) => cache.put(event.request, cacheCopy));
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
           }
           return networkResponse;
         });
@@ -62,17 +57,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. สำหรับไฟล์อื่นๆ ในแอป ใช้กลยุทธ์ Network First, Fallback to Cache
-  // เพื่อให้มั่นใจว่าถ้ามีเน็ตจะได้เวอร์ชันล่าสุดเสมอ
+  // สำหรับ Assets ภายนอกอื่นๆ
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
+    caches.match(event.request).then((cachedResponse) => {
+      return cachedResponse || fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const cacheCopy = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
+          caches.open(DYNAMIC_CACHE).then((cache) => cache.put(event.request, cacheCopy));
         }
         return networkResponse;
-      })
-      .catch(() => caches.match(event.request))
+      }).catch(() => null);
+    })
   );
 });
