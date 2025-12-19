@@ -44,7 +44,6 @@ const WordCard: React.FC<WordCardProps> = ({
     };
     loadData();
 
-    // เช็คว่ามี API Key ไหม เพื่อเตรียมใจใช้ Native Speech
     if (!getValidApiKey()) {
       setIsUsingNativeSpeech(true);
     }
@@ -91,14 +90,12 @@ const WordCard: React.FC<WordCardProps> = ({
     const setIsPlayingState = isExample ? setIsExamplePlaying : setIsPlaying;
     const setLoading = isExample ? setExampleAudioLoading : setAudioLoading;
 
-    // หากไม่มี API Key หรือออฟไลน์ ให้ใช้เบราว์เซอร์อ่านเลย
     if (isUsingNativeSpeech || !navigator.onLine) {
       setIsPlayingState(true);
       playWithNativeSpeech(textToPlay, () => setIsPlayingState(false));
       return;
     }
 
-    // พยายามใช้ Gemini TTS
     try {
       setLoading(true);
       const ctx = await initAudioCtx();
@@ -114,7 +111,6 @@ const WordCard: React.FC<WordCardProps> = ({
         source.start();
         setIsPlayingState(true);
       } else {
-        // Fallback to native if Gemini TTS fails
         setIsPlayingState(true);
         playWithNativeSpeech(textToPlay, () => setIsPlayingState(false));
       }
@@ -125,10 +121,17 @@ const WordCard: React.FC<WordCardProps> = ({
     }
   };
 
+  const handleGoogleSearch = () => {
+    const query = encodeURIComponent(`${word} example sentences with thai translation`);
+    window.open(`https://www.google.com/search?q=${query}`, '_blank');
+  };
+
   return (
     <div 
       className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
     >
       <div 
         className="bg-white w-full max-w-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-in slide-in-from-bottom sm:zoom-in duration-300 origin-bottom sm:origin-center"
@@ -136,14 +139,17 @@ const WordCard: React.FC<WordCardProps> = ({
       >
         <div className={`relative px-6 pb-10 pt-8 sm:pt-12 transition-all duration-700 ${isMastered ? 'bg-emerald-600' : 'bg-indigo-900'}`}>
           <div className="flex items-start justify-between mb-4">
-            <span className="px-3 py-1 bg-white/20 text-[10px] font-bold rounded-full uppercase tracking-widest text-white">
+            <span className="px-3 py-1 bg-white/20 text-[10px] font-bold rounded-full uppercase tracking-widest text-white shadow-sm">
               {level}
             </span>
             <div className="flex items-center gap-1">
-              <button onClick={() => onToggleFavorite(word)} className={`p-2.5 rounded-full transition-all ${isFavorite ? 'bg-white/20 text-rose-300' : 'text-white/40 hover:text-white/60'}`}>
+              <button 
+                onClick={() => onToggleFavorite(word)}
+                className={`p-2.5 rounded-full transition-all ${isFavorite ? 'bg-white/20 text-rose-300' : 'text-white/40 hover:text-white/60'}`}
+              >
                 <svg className="w-6 h-6" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
               </button>
-              <button onClick={onClose} className="p-2.5 rounded-full text-white/40 hover:text-white/80"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg></button>
+              <button onClick={onClose} className="p-2.5 rounded-full text-white/40 hover:text-white/80 transition-all"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
           </div>
 
@@ -168,7 +174,7 @@ const WordCard: React.FC<WordCardProps> = ({
             <button 
               onClick={() => playAudio(word)} 
               disabled={audioLoading} 
-              className="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-3xl flex items-center justify-center text-indigo-900 shadow-2xl hover:scale-105 active:scale-95 transition-all flex-shrink-0 disabled:opacity-50"
+              className="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-3xl flex items-center justify-center text-indigo-900 shadow-2xl hover:scale-105 active:scale-95 transition-all flex-shrink-0 disabled:opacity-50 ring-8 ring-black/5"
             >
               {audioLoading ? <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" /> : 
                isPlaying ? <svg className="w-12 h-12 animate-pulse text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg> : 
@@ -194,20 +200,23 @@ const WordCard: React.FC<WordCardProps> = ({
                 </span>
               </div>
               
-              <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+              <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm min-h-[160px] flex flex-col">
                 {loadingExamples ? (
-                  <div className="p-12 flex flex-col items-center justify-center gap-4">
+                  <div className="p-12 flex flex-col items-center justify-center gap-4 flex-1">
                     <div className="w-10 h-10 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin" />
-                    <p className="text-xs text-slate-400 font-prompt animate-pulse">กำลังค้นหาตัวอย่าง...</p>
+                    <p className="text-xs text-slate-400 font-prompt animate-pulse">กำลังดึงข้อมูลจาก AI...</p>
                   </div>
                 ) : details?.exampleEnglish ? (
-                  <div className="divide-y divide-slate-50">
-                    <div className="p-6 sm:p-8 flex items-start gap-4">
+                  <div className="divide-y divide-slate-50 flex-1 flex flex-col">
+                    <div className="p-6 sm:p-8 flex items-start gap-4 flex-1">
                       <div className="flex-1">
                         <p className="text-xl sm:text-2xl font-medium text-slate-800 leading-relaxed italic">"{details.exampleEnglish}"</p>
                       </div>
-                      <button onClick={() => playAudio(details.exampleEnglish, true)} className="p-4 bg-indigo-50 rounded-2xl text-indigo-600 hover:bg-indigo-100">
-                        {isExamplePlaying ? <svg className="w-6 h-6 animate-pulse" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg> : 
+                      <button 
+                        onClick={() => playAudio(details.exampleEnglish, true)}
+                        className="p-4 bg-indigo-50 rounded-2xl text-indigo-600 hover:bg-indigo-100 transition-colors flex-shrink-0"
+                      >
+                         {isExamplePlaying ? <svg className="w-6 h-6 animate-pulse" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg> : 
                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" /></svg>}
                       </button>
                     </div>
@@ -216,10 +225,25 @@ const WordCard: React.FC<WordCardProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="p-10 text-center flex flex-col items-center gap-2">
-                    <p className="text-slate-400 text-sm font-prompt italic">
-                      {isUsingNativeSpeech ? "เชื่อมต่ออินเทอร์เน็ตเพื่อดูตัวอย่างประโยคเพิ่ม" : "ไม่มีประโยคตัวอย่างในโหมดออฟไลน์"}
-                    </p>
+                  <div className="p-10 text-center flex flex-col items-center justify-center gap-6 flex-1">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                      </div>
+                      <p className="text-slate-400 text-sm font-prompt italic">
+                        {isUsingNativeSpeech ? "เชื่อมต่ออินเทอร์เน็ตเพื่อดูตัวอย่างประโยคเพิ่ม" : "ไม่สามารถโหลดตัวอย่างประโยคจาก AI ได้ในขณะนี้"}
+                      </p>
+                    </div>
+                    
+                    <button 
+                      onClick={handleGoogleSearch}
+                      className="flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-bold text-sm hover:bg-indigo-100 transition-all border border-indigo-100 group shadow-sm active:scale-95"
+                    >
+                      <svg className="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.908 3.152-1.908 4.152-1.24 1.24-3.14 2.56-6.48 2.56-5.41 0-9.81-4.39-9.81-9.8s4.4-9.8 9.81-9.8c3.27 0 5.61 1.28 7.39 2.97l2.3-2.3C19.04 2.14 15.99 0 12 0 5.37 0 0 5.37 0 12s5.37 12 12 12c3.57 0 6.26-1.17 8.36-3.36 2.16-2.16 2.84-5.21 2.84-7.67 0-.72-.05-1.41-.15-2.05h-10.57z"/>
+                      </svg>
+                      ค้นหาตัวอย่างใน Google
+                    </button>
                   </div>
                 )}
               </div>
@@ -228,8 +252,15 @@ const WordCard: React.FC<WordCardProps> = ({
         </div>
 
         <div className="px-6 py-8 bg-white border-t border-slate-100">
-          <button onClick={() => onToggleMastered(word)} className={`w-full py-5 rounded-3xl font-black transition-all shadow-xl flex items-center justify-center gap-3 active:scale-95 ${isMastered ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-            {isMastered ? 'Mastered!' : 'Mark as Mastered'}
+          <button 
+            onClick={() => onToggleMastered(word)} 
+            className={`w-full py-5 rounded-3xl font-black transition-all shadow-xl flex items-center justify-center gap-3 active:scale-95 ${
+              isMastered ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+            }`}
+          >
+            {isMastered ? (
+              <><svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>Mastered!</>
+            ) : 'Mark as Mastered'}
           </button>
         </div>
       </div>
