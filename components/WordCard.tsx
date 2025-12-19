@@ -25,11 +25,17 @@ const WordCard: React.FC<WordCardProps> = ({
   const [loading, setLoading] = useState(true);
   const [showOfflineWarning, setShowOfflineWarning] = useState(false);
   
+  // Word Audio State
   const [audioLoading, setAudioLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   
+  // Example Audio State
+  const [exampleAudioLoading, setExampleAudioLoading] = useState(false);
+  const [isExamplePlaying, setIsExamplePlaying] = useState(false);
+  
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const exampleAudioBufferRef = useRef<AudioBuffer | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +46,6 @@ const WordCard: React.FC<WordCardProps> = ({
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
-    // Focus management: Trap focus inside modal
     const focusableElements = modalRef.current?.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
     if (focusableElements && focusableElements.length > 0) {
       (focusableElements[0] as HTMLElement).focus();
@@ -81,35 +86,61 @@ const WordCard: React.FC<WordCardProps> = ({
       sourceNodeRef.current = null;
     }
     setIsPlaying(false);
+    setIsExamplePlaying(false);
   };
 
-  const playAudio = async () => {
+  const initAudioCtx = async () => {
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
       const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
       audioCtxRef.current = new AudioContextClass({ sampleRate: 24000 });
     }
-    
-    // Ensure context is resumed (browsers often start it in 'suspended' state)
     if (audioCtxRef.current.state === 'suspended') {
       await audioCtxRef.current.resume();
     }
+    return audioCtxRef.current;
+  };
 
+  const playAudio = async () => {
+    const ctx = await initAudioCtx();
+    
     if (!audioBufferRef.current) {
       setAudioLoading(true);
-      const buffer = await fetchWordAudioBuffer(word, audioCtxRef.current);
+      const buffer = await fetchWordAudioBuffer(word, ctx);
       setAudioLoading(false);
       if (!buffer) return;
       audioBufferRef.current = buffer;
     }
 
     stopAudio();
-    const source = audioCtxRef.current.createBufferSource();
+    const source = ctx.createBufferSource();
     source.buffer = audioBufferRef.current;
-    source.connect(audioCtxRef.current.destination);
+    source.connect(ctx.destination);
     source.onended = () => setIsPlaying(false);
     sourceNodeRef.current = source;
     source.start();
     setIsPlaying(true);
+  };
+
+  const playExampleAudio = async () => {
+    if (!details?.exampleEnglish) return;
+    const ctx = await initAudioCtx();
+
+    if (!exampleAudioBufferRef.current) {
+      setExampleAudioLoading(true);
+      const buffer = await fetchWordAudioBuffer(details.exampleEnglish, ctx);
+      setExampleAudioLoading(false);
+      if (!buffer) return;
+      exampleAudioBufferRef.current = buffer;
+    }
+
+    stopAudio();
+    const source = ctx.createBufferSource();
+    source.buffer = exampleAudioBufferRef.current;
+    source.connect(ctx.destination);
+    source.onended = () => setIsExamplePlaying(false);
+    sourceNodeRef.current = source;
+    source.start();
+    setIsExamplePlaying(true);
   };
 
   const displayTranslation = details?.thaiTranslation || staticTranslation || "Loading...";
@@ -128,12 +159,10 @@ const WordCard: React.FC<WordCardProps> = ({
         className="bg-white w-full max-w-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[85vh] animate-in slide-in-from-bottom sm:zoom-in duration-300 origin-bottom sm:origin-center"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Mobile Handle */}
         <div className="sm:hidden flex justify-center pt-3 pb-1 bg-inherit">
           <div className="w-12 h-1.5 bg-slate-300 rounded-full opacity-50" />
         </div>
 
-        {/* Dynamic Header */}
         <div className={`relative px-6 pb-8 pt-4 sm:pt-8 transition-colors duration-700 ${isMastered ? 'bg-emerald-600' : 'bg-indigo-900'}`}>
           <div className="flex items-start justify-between mb-4">
             <div className="flex flex-wrap gap-2 items-center">
@@ -184,7 +213,7 @@ const WordCard: React.FC<WordCardProps> = ({
               onClick={playAudio} 
               disabled={audioLoading} 
               aria-label="Pronounce word"
-              className={`w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-2xl flex items-center justify-center text-indigo-900 shadow-2xl hover:scale-105 active:scale-95 transition-all flex-shrink-0 disabled:opacity-50 ring-4 ring-black/5`}
+              className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-2xl flex items-center justify-center text-indigo-900 shadow-2xl hover:scale-105 active:scale-95 transition-all flex-shrink-0 disabled:opacity-50 ring-4 ring-black/5"
             >
               {audioLoading ? (
                 <div className="w-8 h-8 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
@@ -201,10 +230,8 @@ const WordCard: React.FC<WordCardProps> = ({
           </div>
         </div>
 
-        {/* Content Area */}
         <div className="flex-1 overflow-y-auto bg-white px-6 py-8">
           <div className="max-w-xl mx-auto space-y-8">
-            {/* Translation */}
             <section aria-labelledby="heading-translation">
               <h3 id="heading-translation" className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest mb-3">Thai Translation</h3>
               <div className="bg-indigo-50/50 rounded-2xl p-5 border border-indigo-100/50">
@@ -215,7 +242,6 @@ const WordCard: React.FC<WordCardProps> = ({
               </div>
             </section>
 
-            {/* AI Examples */}
             <section aria-labelledby="heading-examples">
               <div className="flex items-center justify-between mb-3">
                 <h3 id="heading-examples" className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest">Usage Example</h3>
@@ -230,17 +256,36 @@ const WordCard: React.FC<WordCardProps> = ({
                 </div>
               ) : details ? (
                 <div className="space-y-4">
-                  <div className="group relative">
-                    <div className="absolute -left-3 top-0 bottom-0 w-1 bg-indigo-200 rounded-full" />
-                    <p className="text-xl text-slate-700 font-medium leading-relaxed pl-2 italic">
-                      "{details.exampleEnglish}"
-                    </p>
-                    <p className="text-slate-500 font-prompt mt-3 pl-2 leading-relaxed">
+                  <div className="group relative bg-slate-50/50 rounded-2xl p-4 sm:p-5 border border-slate-100 transition-colors hover:border-indigo-100">
+                    <div className="absolute -left-1 top-4 bottom-4 w-1 bg-indigo-200 rounded-full" />
+                    <div className="flex items-start gap-3">
+                      <p className="flex-1 text-lg sm:text-xl text-slate-700 font-medium leading-relaxed italic">
+                        "{details.exampleEnglish}"
+                      </p>
+                      <button 
+                        onClick={playExampleAudio}
+                        disabled={exampleAudioLoading}
+                        aria-label="Play example sentence audio"
+                        className={`p-2 rounded-xl transition-all flex-shrink-0 ${isExamplePlaying ? 'bg-indigo-100 text-indigo-600 shadow-inner' : 'bg-white text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 shadow-sm'}`}
+                      >
+                        {exampleAudioLoading ? (
+                          <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                        ) : isExamplePlaying ? (
+                          <svg className="w-5 h-5 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-slate-500 font-prompt mt-4 leading-relaxed border-t border-slate-200/50 pt-3">
                       {details.exampleThai}
                     </p>
                   </div>
 
-                  {/* Grounded Sources */}
                   {details.sources && details.sources.length > 0 && (
                     <div className="pt-4 mt-6 border-t border-slate-100">
                       <h4 className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-3">Verified Sources</h4>
@@ -272,7 +317,6 @@ const WordCard: React.FC<WordCardProps> = ({
           </div>
         </div>
 
-        {/* Action Footer */}
         <div className="px-6 py-6 sm:py-8 bg-slate-50 border-t border-slate-100 flex gap-4">
           <button 
             onClick={() => onToggleMastered(word)} 
