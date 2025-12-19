@@ -5,7 +5,7 @@ import { WordDetail } from "../types";
 const DATA_CACHE_NAME = 'oxford-3000-data-cache-v1';
 const AUDIO_CACHE_NAME = 'oxford-3000-audio-cache-v1';
 
-const getValidApiKey = (): string | null => {
+export const getValidApiKey = (): string | null => {
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey === 'null') {
     return null;
@@ -14,7 +14,7 @@ const getValidApiKey = (): string | null => {
 };
 
 /**
- * ดึงข้อมูลรายละเอียดคำศัพท์ ประโยคตัวอย่าง และคำแปล โดยใช้ Google Search grounding
+ * ดึงข้อมูลรายละเอียดคำศัพท์ ประโยคตัวอย่าง และคำแปล
  */
 export const getWordExamples = async (word: string): Promise<WordDetail | null> => {
   const cacheKey = `https://api.local/word-details/${word.toLowerCase().trim()}`;
@@ -27,17 +27,13 @@ export const getWordExamples = async (word: string): Promise<WordDetail | null> 
       return await cachedResponse.json();
     }
 
-    if (!navigator.onLine) return null;
-
     const apiKey = getValidApiKey();
-    if (!apiKey) {
-      console.warn("API Key is missing or invalid");
-      return null;
+    if (!apiKey || !navigator.onLine) {
+      return null; // เข้าสู่โหมด fallback ใน UI
     }
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // ปรับ Prompt ให้เรียบง่ายและเน้นโครงสร้างที่ดึงข้อมูลง่าย
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Provide linguistic information for the word "${word}":
@@ -47,8 +43,6 @@ export const getWordExamples = async (word: string): Promise<WordDetail | null> 
       4. One simple English example sentence
       5. Thai translation of that example sentence
       
-      Search query: "meaning of ${word} with example sentence and thai translation"
-      
       Format your response exactly like this:
       PHONETIC: [content]
       POS_EN: [content]
@@ -56,25 +50,17 @@ export const getWordExamples = async (word: string): Promise<WordDetail | null> 
       EXAMPLE_EN: [content]
       EXAMPLE_TH: [content]`,
       config: {
-        systemInstruction: "You are an English-Thai dictionary expert. Provide accurate data based on current usage.",
+        systemInstruction: "You are an English-Thai dictionary expert.",
         tools: [{ googleSearch: {} }]
       }
     });
 
     const text = response.text || "";
-    
-    // ปรับ Regex ให้รองรับทั้งแบบมี ** (Markdown) และไม่มี
     const extract = (key: string) => {
       const regex = new RegExp(`(?:\\*\\*)?${key}(?:\\*\\*)?:?\\s*(.*)`, 'i');
       const match = text.match(regex);
       return match ? match[1].replace(/\*\*/g, '').trim() : "";
     };
-
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    const sources = groundingChunks?.map((chunk: any) => ({
-      uri: chunk.web?.uri,
-      title: chunk.web?.title
-    })).filter((s: any) => s.uri) || [];
 
     const wordDetail: WordDetail = {
       word: word,
@@ -85,10 +71,9 @@ export const getWordExamples = async (word: string): Promise<WordDetail | null> 
       exampleEnglish: extract("EXAMPLE_EN").replace(/^"|"$/g, ''),
       exampleThai: extract("EXAMPLE_TH").replace(/^"|"$/g, ''),
       level: "", 
-      sources: sources.slice(0, 3)
+      sources: []
     };
 
-    // ตรวจสอบว่ามีข้อมูลพื้นฐานครบหรือไม่ก่อนบันทึก
     if (wordDetail.exampleEnglish) {
       await cache.put(cacheKey, new Response(JSON.stringify(wordDetail), {
         headers: { 'Content-Type': 'application/json' }
@@ -96,7 +81,7 @@ export const getWordExamples = async (word: string): Promise<WordDetail | null> 
       return wordDetail;
     }
   } catch (error) {
-    console.error("Error in getWordExamples:", error);
+    console.error("Gemini Data Fetch Error:", error);
   }
   return null;
 };
@@ -118,10 +103,8 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
       return await decodeAudioData(new Uint8Array(arrayBuffer), audioContext, 24000, 1);
     }
 
-    if (!navigator.onLine) return null;
-
     const apiKey = getValidApiKey();
-    if (!apiKey) return null;
+    if (!apiKey || !navigator.onLine) return null;
 
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
@@ -138,15 +121,11 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const audioData = decode(base64Audio);
-
-      await cache.put(cacheKey, new Response(audioData, {
-        headers: { 'Content-Type': 'audio/pcm' }
-      }));
-
+      await cache.put(cacheKey, new Response(audioData, { headers: { 'Content-Type': 'audio/pcm' } }));
       return await decodeAudioData(audioData, audioContext, 24000, 1);
     }
   } catch (error) {
-    console.error("Audio Fetch Error:", error);
+    console.error("Gemini Audio Fetch Error:", error);
   }
   return null;
 };
@@ -160,16 +139,10 @@ function decode(base64: string): Uint8Array {
   return bytes;
 }
 
-async function decodeAudioData(
-  data: Uint8Array, 
-  ctx: AudioContext, 
-  sampleRate: number, 
-  numChannels: number
-): Promise<AudioBuffer> {
+async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
   const dataInt16 = new Int16Array(data.buffer);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
     for (let i = 0; i < frameCount; i++) {
