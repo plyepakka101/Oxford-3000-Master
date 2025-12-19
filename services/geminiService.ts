@@ -2,7 +2,8 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { GeminiWordResponse, WordDetail } from "../types";
 
-const APP_CACHE_NAME = 'oxford-3000-master-cache-v7';
+// เปลี่ยน v7 -> v8 เพื่อบังคับให้ดึงข้อมูลใหม่ทั้งหมด
+const APP_CACHE_NAME = 'oxford-3000-master-cache-v8';
 
 function extractJSON(text: string): string {
   const match = text.match(/\{[\s\S]*\}/);
@@ -17,9 +18,6 @@ const getValidApiKey = (): string | null => {
   return apiKey;
 };
 
-/**
- * ดึงรายละเอียดคำศัพท์พร้อมใช้ Google Search หาตัวอย่างประโยค
- */
 export const getWordDetails = async (word: string): Promise<WordDetail | null> => {
   const normalizedWord = word.toLowerCase().trim();
   const cacheKey = `https://api.local/word-details/${normalizedWord}`;
@@ -43,12 +41,18 @@ export const getWordDetails = async (word: string): Promise<WordDetail | null> =
     if (!apiKey) throw new Error("MISSING_API_KEY");
 
     const ai = new GoogleGenAI({ apiKey });
-    // ใช้ Google Search เพื่อหาตัวอย่างประโยคตามคำที่ผู้ใช้ระบุ
+    
+    // ปรับ Prompt ให้ระบุคำค้นเจาะจงตามที่ผู้ใช้ต้องการ
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
-      contents: `Provide dictionary details for "${normalizedWord}". Use Google Search to find high-quality English and Thai example sentences using the search term: "ตัวอย่างประโยค ${normalizedWord}".`,
+      contents: `Search Google for "ตัวอย่างประโยค ${normalizedWord}" and provide dictionary details.`,
       config: {
-        systemInstruction: "You are an expert English-Thai lexicographer. Return ONLY a valid JSON object. For examples, use real-world results found via Google Search.",
+        systemInstruction: `You are an Oxford Dictionary Expert. 
+        1. Search Google specifically for "ตัวอย่างประโยค ${normalizedWord}".
+        2. Extract a natural example sentence in English and its Thai translation.
+        3. Provide phonetic spelling (e.g. /əˈbɪl.ə.ti/).
+        4. Identify Part of Speech in English (e.g. noun) and Thai (e.g. คำนาม).
+        Return ONLY valid JSON.`,
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
@@ -72,7 +76,7 @@ export const getWordDetails = async (word: string): Promise<WordDetail | null> =
 
     const jsonData = JSON.parse(extractJSON(text));
     
-    // สกัดแหล่งที่มาจาก Grounding Metadata
+    // สกัดลิงก์อ้างอิงจาก Google Search Grounding
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
     const sources = groundingChunks?.map((chunk: any) => ({
       uri: chunk.web?.uri,
@@ -82,7 +86,7 @@ export const getWordDetails = async (word: string): Promise<WordDetail | null> =
     const finalData: WordDetail = {
       word: normalizedWord,
       ...jsonData,
-      sources: sources.slice(0, 3) // เก็บ 3 แหล่งอ้างอิงแรก
+      sources: sources.slice(0, 3)
     };
     
     await cache.put(cacheKey, new Response(JSON.stringify(finalData), {

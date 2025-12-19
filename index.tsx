@@ -8,12 +8,27 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
-// Service Worker Registration
+// Service Worker Registration with Update Detection
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // ใน production mode ของ Vite ไฟล์ sw.js จะอยู่ที่ root
     navigator.serviceWorker.register('/sw.js').then(registration => {
       console.log('SW registered: ', registration);
+      
+      // บังคับอัปเดตถ้ามีเวอร์ชันใหม่
+      registration.onupdatefound = () => {
+        const installingWorker = registration.installing;
+        if (installingWorker) {
+          installingWorker.onstatechange = () => {
+            if (installingWorker.state === 'installed') {
+              if (navigator.serviceWorker.controller) {
+                // มีเวอร์ชันใหม่แน่นอน บังคับรีเฟรช
+                console.log('New content is available; please refresh.');
+                window.location.reload();
+              }
+            }
+          };
+        }
+      };
     }).catch(registrationError => {
       console.log('SW registration failed: ', registrationError);
     });

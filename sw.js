@@ -1,6 +1,6 @@
 
-const CACHE_NAME = 'oxford-3000-v5';
-const DYNAMIC_CACHE = 'oxford-dynamic-v2';
+const CACHE_NAME = 'oxford-3000-v6'; // เปลี่ยน v5 -> v6
+const DYNAMIC_CACHE = 'oxford-dynamic-v3';
 
 const ASSETS_TO_CACHE = [
   '/',
@@ -29,13 +29,9 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// กลยุทธ์ Stale-While-Revalidate: แสดงจาก Cache ทันที + อัปเดตจาก Network เบื้องหลัง
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-
   const url = new URL(event.request.url);
-
-  // ปล่อย Gemini API ให้ geminiService จัดการเอง
   if (url.hostname.includes('generativelanguage.googleapis.com')) return;
 
   event.respondWith(
