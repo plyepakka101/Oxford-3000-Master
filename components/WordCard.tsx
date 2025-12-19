@@ -1,6 +1,6 @@
 
-import { getWordDetails, fetchWordAudioBuffer } from '../services/geminiService';
-import { WordDetail, OxfordWord } from '../types';
+import { fetchWordAudioBuffer } from '../services/geminiService';
+import { OxfordWord } from '../types';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 interface WordCardProps {
@@ -20,22 +20,14 @@ const WordCard: React.FC<WordCardProps> = ({
   onToggleMastered, 
   onClose 
 }) => {
-  const { word, level, translation: staticTranslation } = wordData;
-  const [details, setDetails] = useState<WordDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showOfflineWarning, setShowOfflineWarning] = useState(false);
+  const { word, level, translation, phonetic, posEn, posTh } = wordData;
   
   // Word Audio State
   const [audioLoading, setAudioLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   
-  // Example Audio State
-  const [exampleAudioLoading, setExampleAudioLoading] = useState(false);
-  const [isExamplePlaying, setIsExamplePlaying] = useState(false);
-  
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
-  const exampleAudioBufferRef = useRef<AudioBuffer | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -53,32 +45,14 @@ const WordCard: React.FC<WordCardProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const res = await getWordDetails(word);
-      if (res) {
-        setDetails(res);
-        setShowOfflineWarning(false);
-      } else {
-        setShowOfflineWarning(!navigator.onLine);
-      }
-    } catch (e: any) {
-      setShowOfflineWarning(!navigator.onLine);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchData();
     return () => {
       stopAudio();
       if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
         audioCtxRef.current.close();
       }
     };
-  }, [word]);
+  }, []);
 
   const stopAudio = () => {
     if (sourceNodeRef.current) {
@@ -86,7 +60,6 @@ const WordCard: React.FC<WordCardProps> = ({
       sourceNodeRef.current = null;
     }
     setIsPlaying(false);
-    setIsExamplePlaying(false);
   };
 
   const initAudioCtx = async () => {
@@ -121,34 +94,13 @@ const WordCard: React.FC<WordCardProps> = ({
     setIsPlaying(true);
   };
 
-  const playExampleAudio = async () => {
-    if (!details?.exampleEnglish) return;
-    const ctx = await initAudioCtx();
-
-    if (!exampleAudioBufferRef.current) {
-      setExampleAudioLoading(true);
-      const buffer = await fetchWordAudioBuffer(details.exampleEnglish, ctx);
-      setExampleAudioLoading(false);
-      if (!buffer) return;
-      exampleAudioBufferRef.current = buffer;
-    }
-
-    stopAudio();
-    const source = ctx.createBufferSource();
-    source.buffer = exampleAudioBufferRef.current;
-    source.connect(ctx.destination);
-    source.onended = () => setIsExamplePlaying(false);
-    sourceNodeRef.current = source;
-    source.start();
-    setIsExamplePlaying(true);
+  const openGoogleSearch = () => {
+    window.open(`https://www.google.com/search?q=ตัวอย่างประโยค+${word}`, '_blank');
   };
-
-  const displayTranslation = details?.thaiTranslation || staticTranslation || "Loading...";
-  const displayLevel = details?.level || level;
 
   return (
     <div 
-      className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -167,11 +119,8 @@ const WordCard: React.FC<WordCardProps> = ({
           <div className="flex items-start justify-between mb-4">
             <div className="flex flex-wrap gap-2 items-center">
               <span className="px-3 py-1 bg-white/20 text-[10px] font-bold rounded-full uppercase tracking-widest text-white shadow-sm">
-                {displayLevel}
+                {level}
               </span>
-              {showOfflineWarning && !details && (
-                <span className="px-2 py-1 bg-amber-500 text-[10px] font-bold rounded text-white animate-pulse">Offline Mode</span>
-              )}
             </div>
             
             <div className="flex items-center gap-1">
@@ -198,18 +147,18 @@ const WordCard: React.FC<WordCardProps> = ({
 
           <div className="flex justify-between items-center gap-4">
             <div className="flex-1 min-w-0">
-              <h2 id="word-title" className="text-4xl sm:text-5xl font-black text-white tracking-tight break-words">{word}</h2>
-              <div className="flex items-baseline gap-3 mt-3 overflow-hidden">
-                <span className="text-indigo-200 font-mono text-xl sm:text-2xl whitespace-nowrap">{details?.phonetic || '/.../'}</span>
+              <h2 id="word-title" className="text-4xl sm:text-6xl font-black text-white tracking-tight break-words drop-shadow-sm">{word}</h2>
+              <div className="flex items-baseline gap-3 mt-4 overflow-hidden">
+                <span className="text-indigo-200 font-inter text-xl sm:text-2xl whitespace-nowrap tracking-wide">{phonetic || '/.../'}</span>
                 <div className="flex flex-wrap gap-2">
-                  {details?.partOfSpeech && (
-                    <span className="text-white/70 text-xs font-bold uppercase bg-white/10 px-2 py-0.5 rounded border border-white/10 truncate">
-                      {details.partOfSpeech}
+                  {posEn && (
+                    <span className="text-white/80 text-[10px] font-bold uppercase bg-white/10 px-2 py-0.5 rounded border border-white/20 truncate">
+                      {posEn}
                     </span>
                   )}
-                  {details?.partOfSpeechThai && (
-                    <span className="text-white/70 text-xs font-bold font-prompt bg-white/10 px-2 py-0.5 rounded border border-white/10 truncate">
-                      {details.partOfSpeechThai}
+                  {posTh && (
+                    <span className="text-white/80 text-[10px] font-bold font-prompt bg-white/10 px-2 py-0.5 rounded border border-white/20 truncate">
+                      {posTh}
                     </span>
                   )}
                 </div>
@@ -238,85 +187,34 @@ const WordCard: React.FC<WordCardProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto bg-white px-6 py-8">
-          <div className="max-w-xl mx-auto space-y-8">
+          <div className="max-w-xl mx-auto space-y-10">
             <section aria-labelledby="heading-translation">
-              <h3 id="heading-translation" className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest mb-3">Thai Translation</h3>
-              <div className="bg-indigo-50/50 rounded-2xl p-5 border border-indigo-100/50">
-                <p className="text-3xl font-bold text-slate-800 font-prompt leading-tight">{displayTranslation}</p>
+              <h3 id="heading-translation" className="text-[10px] font-black text-indigo-600/50 uppercase tracking-widest mb-4">Thai Translation</h3>
+              <div className="bg-indigo-50/50 rounded-3xl p-6 sm:p-8 border border-indigo-100/50 text-center">
+                <p className="text-4xl sm:text-5xl font-bold text-slate-800 font-prompt leading-tight">{translation}</p>
               </div>
             </section>
 
             <section aria-labelledby="heading-examples">
-              <div className="flex items-center justify-between mb-3">
-                <h3 id="heading-examples" className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest">Usage Example</h3>
-                <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase border border-emerald-200/50">AI Powered</span>
+              <div className="flex items-center justify-between mb-4">
+                <h3 id="heading-examples" className="text-[10px] font-black text-indigo-600/50 uppercase tracking-widest">Usage Example</h3>
+                <span className="text-[9px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full uppercase border border-indigo-100">Direct Search</span>
               </div>
               
-              {loading && !details ? (
-                <div className="space-y-3 animate-pulse">
-                  <div className="h-4 bg-slate-100 rounded w-full" />
-                  <div className="h-4 bg-slate-100 rounded w-5/6" />
-                  <div className="h-3 bg-slate-50 rounded w-1/2" />
+              <button 
+                onClick={openGoogleSearch}
+                className="w-full group bg-slate-50 border-2 border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all rounded-3xl p-8 flex flex-col items-center gap-4 group"
+              >
+                <div className="w-12 h-12 bg-white rounded-full shadow-sm border border-slate-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <svg className="w-6 h-6 text-indigo-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C9.03,19.27 6.48,16.68 6.48,13.5C6.48,10.31 9.03,7.74 12.19,7.74C13.9,7.74 15.6,8.36 16.67,9.35L18.73,7.3C17.03,5.66 14.68,4.73 12.19,4.73C7.35,4.73 3.41,8.67 3.41,13.5C3.41,18.33 7.35,22.27 12.19,22.27C16.88,22.27 21.65,18.95 21.65,13.5C21.65,12.7 21.48,11.76 21.35,11.1V11.1Z" />
+                  </svg>
                 </div>
-              ) : details ? (
-                <div className="space-y-4">
-                  <div className="group relative bg-slate-50/50 rounded-2xl p-4 sm:p-5 border border-slate-100 transition-colors hover:border-indigo-100">
-                    <div className="absolute -left-1 top-4 bottom-4 w-1 bg-indigo-200 rounded-full" />
-                    <div className="flex items-start gap-3">
-                      <p className="flex-1 text-lg sm:text-xl text-slate-700 font-medium leading-relaxed italic">
-                        "{details.exampleEnglish}"
-                      </p>
-                      <button 
-                        onClick={playExampleAudio}
-                        disabled={exampleAudioLoading}
-                        aria-label="Play example sentence audio"
-                        className={`p-2 rounded-xl transition-all flex-shrink-0 ${isExamplePlaying ? 'bg-indigo-100 text-indigo-600 shadow-inner' : 'bg-white text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 shadow-sm'}`}
-                      >
-                        {exampleAudioLoading ? (
-                          <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-                        ) : isExamplePlaying ? (
-                          <svg className="w-5 h-5 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-slate-500 font-prompt mt-4 leading-relaxed border-t border-slate-200/50 pt-3">
-                      {details.exampleThai}
-                    </p>
-                  </div>
-
-                  {details.sources && details.sources.length > 0 && (
-                    <div className="pt-4 mt-6 border-t border-slate-100">
-                      <h4 className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-3">Verified Sources</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {details.sources.slice(0, 2).map((source, idx) => (
-                          <a 
-                            key={idx}
-                            href={source.uri}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-[10px] text-slate-600 transition-all truncate max-w-[200px]"
-                          >
-                            <svg className="w-3 h-3 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                            {source.title || "Reference source"}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                <div className="text-center">
+                  <p className="text-slate-700 font-bold text-lg mb-1">ค้นหาตัวอย่างประโยค</p>
+                  <p className="text-slate-400 text-sm font-prompt">ดูตัวอย่างการใช้คำว่า "{word}" บน Google</p>
                 </div>
-              ) : (
-                <div className="text-center py-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                  <p className="text-slate-400 text-sm font-prompt">Could not load example sentences.</p>
-                </div>
-              )}
+              </button>
             </section>
           </div>
         </div>

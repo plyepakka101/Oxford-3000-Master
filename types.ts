@@ -8,13 +8,16 @@ export interface WordDetail {
   exampleEnglish: string;
   exampleThai: string;
   level: string;
-  sources?: { uri: string; title: string }[]; // สำหรับเก็บแหล่งที่มาจาก Google Search
+  sources?: { uri: string; title: string }[];
 }
 
 export interface OxfordWord {
   word: string;
   level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
   translation?: string;
+  phonetic?: string;
+  posEn?: string;
+  posTh?: string;
 }
 
 export interface GeminiWordResponse {
@@ -25,11 +28,4 @@ export interface GeminiWordResponse {
   exampleEnglish: string;
   exampleThai: string;
   level: string;
-}
-
-export interface WordCustomization {
-  thaiTranslation?: string;
-  exampleEnglish?: string;
-  exampleThai?: string;
-  phonetic?: string;
 }
