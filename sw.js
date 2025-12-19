@@ -1,6 +1,6 @@
 
-const CACHE_NAME = 'oxford-3000-v4';
-const DYNAMIC_CACHE = 'oxford-dynamic-v1';
+const CACHE_NAME = 'oxford-3000-v5';
+const DYNAMIC_CACHE = 'oxford-dynamic-v2';
 
 const ASSETS_TO_CACHE = [
   '/',
@@ -12,9 +12,7 @@ const ASSETS_TO_CACHE = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
   );
   self.skipWaiting();
 });
@@ -31,42 +29,27 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// กลยุทธ์ Stale-While-Revalidate: แสดงจาก Cache ทันที + อัปเดตจาก Network เบื้องหลัง
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
 
-  // ข้าม Gemini API
+  // ปล่อย Gemini API ให้ geminiService จัดการเอง
   if (url.hostname.includes('generativelanguage.googleapis.com')) return;
 
-  // สำหรับไฟล์จาก Origin เดียวกัน (เช่น .tsx, .ts, .js ภายในโปรเจกต์)
-  // ใช้กลยุทธ์ Cache First เพื่อความเร็วแบบ Native App
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        const fetchPromise = fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const cacheCopy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
-          }
-          return networkResponse;
-        });
-        return cachedResponse || fetchPromise;
-      })
-    );
-    return;
-  }
-
-  // สำหรับ Assets ภายนอกอื่นๆ
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request).then((networkResponse) => {
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const cacheCopy = networkResponse.clone();
-          caches.open(DYNAMIC_CACHE).then((cache) => cache.put(event.request, cacheCopy));
+          const targetCache = url.origin === self.location.origin ? CACHE_NAME : DYNAMIC_CACHE;
+          caches.open(targetCache).then((cache) => cache.put(event.request, cacheCopy));
         }
         return networkResponse;
       }).catch(() => null);
+
+      return cachedResponse || fetchPromise;
     })
   );
 });

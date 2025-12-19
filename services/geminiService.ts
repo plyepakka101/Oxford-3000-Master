@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { GeminiWordResponse } from "../types";
 
-const APP_CACHE_NAME = 'oxford-3000-master-cache-v4';
+const APP_CACHE_NAME = 'oxford-3000-master-cache-v5';
 
 function extractJSON(text: string): string {
   const match = text.match(/\{[\s\S]*\}/);
@@ -10,7 +10,6 @@ function extractJSON(text: string): string {
 }
 
 const getValidApiKey = (): string | null => {
-  // Directly access the environment variable which is updated by the platform
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey === 'null') {
     return null;
@@ -26,18 +25,23 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
     const cache = await caches.open(APP_CACHE_NAME);
     const cachedResponse = await cache.match(cacheKey);
 
+    // ถ้ามีใน Cache แล้ว ให้คืนค่าทันทีเพื่อความเร็ว
     if (cachedResponse) {
       try {
-        return await cachedResponse.json();
+        const data = await cachedResponse.json();
+        console.log(`Loaded from cache: ${normalizedWord}`);
+        return data;
       } catch (e) {
-        console.warn("Cached data corrupt");
+        console.warn("Cached data corrupt, fetching new...");
       }
     }
+
+    // ถ้าไม่มีใน Cache และ Online อยู่ ให้เรียก AI
+    if (!navigator.onLine) return null;
 
     const apiKey = getValidApiKey();
     if (!apiKey) throw new Error("MISSING_API_KEY");
 
-    // Re-initialize for every call to ensure the latest API Key is used
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
@@ -65,16 +69,15 @@ export const getWordDetails = async (word: string): Promise<GeminiWordResponse |
     if (!text) return null;
 
     const data = JSON.parse(extractJSON(text));
+    
+    // บันทึกลง Cache สำหรับครั้งต่อไป
     await cache.put(cacheKey, new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' }
     }));
 
     return data;
   } catch (error: any) {
-    console.error("Gemini API Error Details:", error);
-    if (error.message?.includes("API_KEY_INVALID") || error.message?.includes("not found")) {
-      throw new Error("INVALID_KEY");
-    }
+    console.error("Gemini API Error:", error);
     throw error;
   }
 };
@@ -87,10 +90,13 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
     const cache = await caches.open(APP_CACHE_NAME);
     const cachedResponse = await cache.match(cacheKey);
 
+    // ถ้ามีเสียงในเครื่องแล้ว เล่นได้ทันทีแม้จะออฟไลน์
     if (cachedResponse) {
       const arrayBuffer = await cachedResponse.arrayBuffer();
       return await decodeAudioData(new Uint8Array(arrayBuffer), audioContext, 24000, 1);
     }
+
+    if (!navigator.onLine) return null;
 
     const apiKey = getValidApiKey();
     if (!apiKey) return null;
@@ -112,6 +118,7 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const audioData = decodeBase64(base64Audio);
+      // เก็บไฟล์เสียงดิบไว้ใน Cache
       await cache.put(cacheKey, new Response(new Blob([audioData.buffer])));
       return await decodeAudioData(audioData, audioContext, 24000, 1);
     }
