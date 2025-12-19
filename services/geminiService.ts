@@ -15,7 +15,6 @@ const getValidApiKey = (): string | null => {
 
 /**
  * ดึงข้อมูลรายละเอียดคำศัพท์ ประโยคตัวอย่าง และคำแปล โดยใช้ Google Search grounding
- * และเก็บข้อมูลไว้ใน Cache เพื่อใช้งานแบบ Offline
  */
 export const getWordExamples = async (word: string): Promise<WordDetail | null> => {
   const cacheKey = `https://api.local/word-details/${word.toLowerCase().trim()}`;
@@ -31,37 +30,44 @@ export const getWordExamples = async (word: string): Promise<WordDetail | null> 
     if (!navigator.onLine) return null;
 
     const apiKey = getValidApiKey();
-    if (!apiKey) return null;
+    if (!apiKey) {
+      console.warn("API Key is missing or invalid");
+      return null;
+    }
 
     const ai = new GoogleGenAI({ apiKey });
     
+    // ปรับ Prompt ให้เรียบง่ายและเน้นโครงสร้างที่ดึงข้อมูลง่าย
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `ค้นหาข้อมูลคำศัพท์ภาษาอังกฤษคำว่า "${word}" ดังนี้:
-      1. คำอ่าน (Phonetic spelling เช่น /haʊs/)
-      2. ประเภทของคำ (Part of Speech เช่น Noun, Verb)
-      3. ประเภทของคำแปลเป็นไทย (เช่น นาม, กริยา)
-      4. ประโยคตัวอย่างภาษาอังกฤษที่ทันสมัย 1 ประโยค
-      5. คำแปลของประโยคตัวอย่างนั้นเป็นภาษาไทย
+      contents: `Provide linguistic information for the word "${word}":
+      1. Phonetic (e.g. /əbˈɪləti/)
+      2. Part of Speech in English (e.g. Noun, Verb)
+      3. Part of Speech in Thai (เช่น คำนาม, คำกริยา)
+      4. One simple English example sentence
+      5. Thai translation of that example sentence
       
-      ใช้การค้นหา: "ตัวอย่างประโยค ${word} พร้อมคำแปล"
+      Search query: "meaning of ${word} with example sentence and thai translation"
       
-      ตอบกลับในรูปแบบนี้เท่านั้น:
-      PHONETIC: [คำอ่าน]
-      POS_EN: [ประเภทคำภาษาอังกฤษ]
-      POS_TH: [ประเภทคำภาษาไทย]
-      EXAMPLE_EN: [ประโยคภาษาอังกฤษ]
-      EXAMPLE_TH: [คำแปลประโยคภาษาไทย]`,
+      Format your response exactly like this:
+      PHONETIC: [content]
+      POS_EN: [content]
+      POS_TH: [content]
+      EXAMPLE_EN: [content]
+      EXAMPLE_TH: [content]`,
       config: {
-        systemInstruction: "คุณเป็นผู้ช่วยสอนภาษาอังกฤษที่เชี่ยวชาญ ค้นหาข้อมูลที่ถูกต้องที่สุดจาก Google Search",
+        systemInstruction: "You are an English-Thai dictionary expert. Provide accurate data based on current usage.",
         tools: [{ googleSearch: {} }]
       }
     });
 
     const text = response.text || "";
+    
+    // ปรับ Regex ให้รองรับทั้งแบบมี ** (Markdown) และไม่มี
     const extract = (key: string) => {
-      const match = text.match(new RegExp(`${key}:\\s*(.*)`, 'i'));
-      return match ? match[1].trim() : "";
+      const regex = new RegExp(`(?:\\*\\*)?${key}(?:\\*\\*)?:?\\s*(.*)`, 'i');
+      const match = text.match(regex);
+      return match ? match[1].replace(/\*\*/g, '').trim() : "";
     };
 
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
@@ -82,17 +88,17 @@ export const getWordExamples = async (word: string): Promise<WordDetail | null> 
       sources: sources.slice(0, 3)
     };
 
+    // ตรวจสอบว่ามีข้อมูลพื้นฐานครบหรือไม่ก่อนบันทึก
     if (wordDetail.exampleEnglish) {
       await cache.put(cacheKey, new Response(JSON.stringify(wordDetail), {
         headers: { 'Content-Type': 'application/json' }
       }));
+      return wordDetail;
     }
-
-    return wordDetail;
   } catch (error) {
-    console.error("Error fetching word data:", error);
-    return null;
+    console.error("Error in getWordExamples:", error);
   }
+  return null;
 };
 
 /**
