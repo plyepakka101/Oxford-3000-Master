@@ -38,7 +38,7 @@ export const getWordDetails = async (word: string): Promise<WordDetail | null> =
     
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
-      contents: `Search Google for "English word meaning and example: ${normalizedWord}" and extract details. 
+      contents: `Search Google for "ตัวอย่างประโยค ${normalizedWord}" and extract details. 
       Format your response exactly like this:
       TRANSLATION: [Thai translation]
       PHONETIC: [Phonetic spelling]
@@ -109,7 +109,6 @@ export const fetchWordAudioBuffer = async (text: string, audioContext: AudioCont
 
     // 1. Check if audio for the given text is already in the cache
     if (cachedResponse) {
-      console.log(`[Audio Cache] Hit: ${normalizedText.substring(0, 20)}...`);
       const arrayBuffer = await cachedResponse.arrayBuffer();
       // The cached data is raw PCM from the previous put
       return await decodeAudioData(new Uint8Array(arrayBuffer), audioContext, 24000, 1);
